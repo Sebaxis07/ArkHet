@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Project, ArchNode, Endpoint, SubNode } from '../types/architecture';
+import type { Project, ArchNode, Endpoint } from '../types/architecture';
 import { 
   X, 
   Server, 
@@ -19,8 +19,11 @@ import {
   UserCheck,
   GitBranch,
   ExternalLink,
-  Search,
-  Table
+  Table,
+  Layout,
+  Code2,
+  Terminal,
+  Bot
 } from 'lucide-react';
 
 interface TechSpecSidebarProps {
@@ -38,11 +41,11 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
   onUpdateNode,
   onDeleteNode
 }) => {
-  const [activeTab, setActiveTab] = useState<'stack' | 'endpoints' | 'db' | 'env' | 'subnodes'>('stack');
+  // Tab State
+  const [activeTab, setActiveTab] = useState<string>('default');
   const [showSecrets, setShowSecrets] = useState(false);
-  const [subnodeSearch, setSubnodeSearch] = useState('');
 
-  // New Endpoint State
+  // New Endpoint Form State
   const [newMethod, setNewMethod] = useState<'GET' | 'POST' | 'PUT' | 'DELETE' | 'WS'>('GET');
   const [newPath, setNewPath] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -97,50 +100,56 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
     onUpdateNode({ ...selectedNode, status: newStatus });
   };
 
-  // Group subnodes into clean categories
-  const getCategorizedSubnodes = (subNodes?: SubNode[]) => {
-    if (!subNodes || subNodes.length === 0) return {};
+  // Category Tabs Definition
+  const renderCategoryTabs = () => {
+    if (!selectedNode) return null;
+    const cat = selectedNode.category;
 
-    const filtered = subNodes.filter(sn => 
-      sn.label.toLowerCase().includes(subnodeSearch.toLowerCase()) ||
-      (sn.details && sn.details.toLowerCase().includes(subnodeSearch.toLowerCase()))
-    );
-
-    const categories: Record<string, SubNode[]> = {
-      '📁 RUTAS Y API (Routes & Endpoints)': [],
-      '🧩 COMPONENTES DE VISTA (React & UI)': [],
-      '⚙️ SERVICIOS E INTELIGENCIA ARTIFICIAL': [],
-      '🗄️ MODELOS Y ESQUEMAS DB': [],
-      '📦 OTROS MÓDULOS DE CÓDIGO': []
-    };
-
-    for (const sn of filtered) {
-      if (sn.type === 'route') {
-        categories['📁 RUTAS Y API (Routes & Endpoints)'].push(sn);
-      } else if (sn.type === 'controller' || sn.details?.includes('components') || sn.details?.includes('views')) {
-        categories['🧩 COMPONENTES DE VISTA (React & UI)'].push(sn);
-      } else if (sn.type === 'service' || sn.type === 'worker' || sn.details?.includes('service')) {
-        categories['⚙️ SERVICIOS E INTELIGENCIA ARTIFICIAL'].push(sn);
-      } else if (sn.type === 'model' || sn.details?.includes('models')) {
-        categories['🗄️ MODELOS Y ESQUEMAS DB'].push(sn);
-      } else {
-        categories['📦 OTROS MÓDULOS DE CÓDIGO'].push(sn);
-      }
+    if (cat === 'frontend') {
+      return [
+        { id: 'ui', label: 'VISTAS UI' },
+        { id: 'consumed_api', label: 'CONSUMO API' },
+        { id: 'stack', label: 'PAQUETES' }
+      ];
+    } else if (cat === 'backend') {
+      return [
+        { id: 'endpoints', label: `ENDPOINTS (${selectedNode.endpoints?.length || 0})` },
+        { id: 'services', label: `SERVICIOS (${selectedNode.subNodes?.length || 0})` },
+        { id: 'env', label: 'VARS ENV' },
+        { id: 'stack', label: 'STACK' }
+      ];
+    } else if (cat === 'database') {
+      return [
+        { id: 'tables', label: `ESQUEMAS DB (${selectedNode.tables?.length || 0})` },
+        { id: 'performance', label: 'PERFORMANCE' },
+        { id: 'stack', label: 'DRIVER' }
+      ];
+    } else if (cat === 'microservice') {
+      return [
+        { id: 'ai_models', label: 'MOTOR IA' },
+        { id: 'services', label: 'FASTAPI/SERVICES' },
+        { id: 'stack', label: 'PAQUETES PYTHON' }
+      ];
+    } else {
+      return [
+        { id: 'stack', label: 'STACK' },
+        { id: 'subnodes', label: `MÓDULOS (${selectedNode.subNodes?.length || 0})` }
+      ];
     }
-
-    // Filter out empty categories
-    return Object.fromEntries(Object.entries(categories).filter(([_, items]) => items.length > 0));
   };
+
+  const tabs = renderCategoryTabs() || [];
+  const currentTab = tabs.some(t => t.id === activeTab) ? activeTab : tabs[0]?.id || 'stack';
 
   return (
     <div className="w-80 h-full bg-[#121212] border-l border-neutral-800 flex flex-col z-20 font-sans text-neutral-200 select-none">
       {selectedNode ? (
-        // NODE SPEC INSPECTOR
+        // CATEGORY-SPECIFIC NODE INSPECTOR
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           {/* Node Inspector Header */}
           <div className="p-5 border-b border-neutral-800 bg-[#171717] space-y-3">
             <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-black text-white border border-neutral-800 font-bold">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-mono uppercase bg-black text-white border border-neutral-800 font-bold">
                 {getNodeIcon(selectedNode.category)} NODO {selectedNode.category.toUpperCase()}
               </span>
 
@@ -162,7 +171,7 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
             </div>
 
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight leading-snug">
+              <h2 className="text-base font-bold text-white tracking-tight leading-snug font-mono">
                 {selectedNode.label}
               </h2>
               <p className="text-xs text-neutral-400 mt-1 leading-relaxed font-sans">
@@ -189,7 +198,7 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
               )}
             </div>
 
-            {/* Health Status Selector */}
+            {/* Operational Status Selector */}
             <div className="flex items-center justify-between pt-2 text-xs font-mono">
               <span className="text-neutral-500">ESTADO OPERATIVO:</span>
               <select
@@ -205,54 +214,356 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
             </div>
           </div>
 
-          {/* Navigation Tabs */}
+          {/* Navigation Category Tabs */}
           <div className="flex border-b border-neutral-800 bg-black font-mono text-[11px] overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('stack')}
-              className={`px-3 py-2 font-bold whitespace-nowrap border-b-2 transition-all ${
-                activeTab === 'stack' ? 'border-white text-white bg-[#171717]' : 'border-transparent text-neutral-400 hover:text-white'
-              }`}
-            >
-              STACK
-            </button>
-            <button
-              onClick={() => setActiveTab('endpoints')}
-              className={`px-3 py-2 font-bold whitespace-nowrap border-b-2 transition-all ${
-                activeTab === 'endpoints' ? 'border-white text-white bg-[#171717]' : 'border-transparent text-neutral-400 hover:text-white'
-              }`}
-            >
-              ENDPOINTS ({selectedNode.endpoints?.length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab('subnodes')}
-              className={`px-3 py-2 font-bold whitespace-nowrap border-b-2 transition-all ${
-                activeTab === 'subnodes' ? 'border-white text-white bg-[#171717]' : 'border-transparent text-neutral-400 hover:text-white'
-              }`}
-            >
-              SUBCOMPONENTES ({selectedNode.subNodes?.length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab('db')}
-              className={`px-3 py-2 font-bold whitespace-nowrap border-b-2 transition-all ${
-                activeTab === 'db' ? 'border-white text-white bg-[#171717]' : 'border-transparent text-neutral-400 hover:text-white'
-              }`}
-            >
-              TABLAS DB ({selectedNode.tables?.length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab('env')}
-              className={`px-3 py-2 font-bold whitespace-nowrap border-b-2 transition-all ${
-                activeTab === 'env' ? 'border-white text-white bg-[#171717]' : 'border-transparent text-neutral-400 hover:text-white'
-              }`}
-            >
-              VARS ENV ({selectedNode.envVars?.length || 0})
-            </button>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`px-3 py-2 font-bold whitespace-nowrap border-b-2 transition-all ${
+                  currentTab === t.id ? 'border-white text-white bg-[#171717]' : 'border-transparent text-neutral-400 hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
-          {/* Tab Content Body */}
+          {/* Tab Content Body (Category Specific) */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 font-sans text-xs">
-            {/* TAB 1: STACK */}
-            {activeTab === 'stack' && (
+            {/* FRONTEND SPECIFIC TEMPLATE */}
+            {selectedNode.category === 'frontend' && (
+              <>
+                {currentTab === 'ui' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-neutral-500 font-bold block">
+                      VISTAS Y COMPONENTES VISUALES EN CLIENTE
+                    </span>
+
+                    <div className="space-y-2">
+                      {selectedNode.subNodes && selectedNode.subNodes.length > 0 ? (
+                        selectedNode.subNodes.map(sn => (
+                          <div key={sn.id} className="p-3 bg-black rounded border border-neutral-800 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                                <Layout className="w-3.5 h-3.5 text-white" />
+                                {sn.label}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 font-bold">
+                                {sn.type}
+                              </span>
+                            </div>
+                            {sn.details && (
+                              <span className="text-[10px] text-neutral-500 block truncate">{sn.details}</span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-neutral-500 text-xs">Sin vistas de componentes mapeadas.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {currentTab === 'consumed_api' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-neutral-500 font-bold block">
+                      CONSUMO DE RUTAS API (HTTP CLIENT)
+                    </span>
+
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-neutral-300">
+                        <span className="font-bold">Cliente HTTP:</span>
+                        <span className="text-white font-bold">Axios / Fetch API</span>
+                      </div>
+                      <div className="flex items-center justify-between text-neutral-300">
+                        <span className="font-bold">Backend Target:</span>
+                        <span className="text-white font-bold">http://localhost:5000/api</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="p-2.5 bg-black rounded border border-neutral-800 font-mono text-[11px] space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded bg-white text-black font-bold text-[9px]">POST</span>
+                          <span className="text-white font-bold">/api/auth/login</span>
+                        </div>
+                        <span className="text-[10px] text-neutral-400">Autenticación de sesión de usuario</span>
+                      </div>
+                      <div className="p-2.5 bg-black rounded border border-neutral-800 font-mono text-[11px] space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded bg-neutral-800 text-white font-bold text-[9px] border border-neutral-700">GET</span>
+                          <span className="text-white font-bold">/api/projects</span>
+                        </div>
+                        <span className="text-[10px] text-neutral-400">Carga de proyectos del mapa</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* BACKEND SPECIFIC TEMPLATE */}
+            {selectedNode.category === 'backend' && (
+              <>
+                {currentTab === 'endpoints' && (
+                  <div className="space-y-4 font-mono">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold">
+                        RUTAS API DETECTADAS ({selectedNode.endpoints?.length || 0})
+                      </span>
+                      <button
+                        onClick={() => setIsAddingEndpoint(!isAddingEndpoint)}
+                        className="px-2 py-1 bg-white text-black font-bold text-[10px] rounded flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> NUEVO
+                      </button>
+                    </div>
+
+                    {isAddingEndpoint && (
+                      <form onSubmit={handleAddEndpointSubmit} className="p-3 bg-black border border-neutral-800 rounded space-y-2 text-xs">
+                        <div className="flex gap-2">
+                          <select
+                            value={newMethod}
+                            onChange={e => setNewMethod(e.target.value as any)}
+                            className="bg-[#171717] text-white p-1.5 rounded border border-neutral-800 font-bold text-xs"
+                          >
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="WS">WS</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={newPath}
+                            onChange={e => setNewPath(e.target.value)}
+                            placeholder="/api/v1/recurso"
+                            className="flex-1 bg-[#171717] text-white p-1.5 rounded border border-neutral-800 font-mono text-xs placeholder-neutral-500"
+                            required
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={newDesc}
+                          onChange={e => setNewDesc(e.target.value)}
+                          placeholder="Descripción del endpoint"
+                          className="w-full bg-[#171717] text-white p-1.5 rounded border border-neutral-800 font-sans text-xs placeholder-neutral-500"
+                        />
+                        <button
+                          type="submit"
+                          className="w-full py-1.5 bg-white text-black font-bold rounded text-xs"
+                        >
+                          GUARDAR ENDPOINT
+                        </button>
+                      </form>
+                    )}
+
+                    <div className="space-y-2">
+                      {selectedNode.endpoints && selectedNode.endpoints.length > 0 ? (
+                        selectedNode.endpoints.map(ep => (
+                          <div key={ep.id} className="p-3 bg-black rounded border border-neutral-800 space-y-1 relative group">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  ep.method === 'GET' ? 'bg-neutral-800 text-white border border-neutral-700' :
+                                  ep.method === 'POST' ? 'bg-white text-black' :
+                                  'bg-neutral-900 text-neutral-300 border border-neutral-800'
+                                }`}>
+                                  {ep.method}
+                                </span>
+                                <span className="text-xs font-bold text-white">{ep.path}</span>
+                              </div>
+
+                              <button
+                                onClick={() => handleRemoveEndpoint(ep.id)}
+                                className="text-neutral-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            {ep.description && (
+                              <p className="text-[11px] text-neutral-400 font-sans">{ep.description}</p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-neutral-500">Sin endpoints registrados en este nodo.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {currentTab === 'services' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                      CONTROLADORES Y SERVICIOS BACKEND
+                    </span>
+
+                    <div className="space-y-2">
+                      {selectedNode.subNodes && selectedNode.subNodes.length > 0 ? (
+                        selectedNode.subNodes.map(sn => (
+                          <div key={sn.id} className="p-3 bg-black rounded border border-neutral-800 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                                <Code2 className="w-3.5 h-3.5 text-white" />
+                                {sn.label}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 font-bold">
+                                {sn.type}
+                              </span>
+                            </div>
+                            {sn.details && (
+                              <span className="text-[10px] text-neutral-500 block truncate">{sn.details}</span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-neutral-500 text-xs">Sin controladores registrados.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* DATABASE SPECIFIC TEMPLATE */}
+            {selectedNode.category === 'database' && (
+              <>
+                {currentTab === 'tables' && (
+                  <div className="space-y-4 font-mono">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                      ESQUEMAS Y COLECCIONES DE BASE DE DATOS ({selectedNode.tables?.length || 0})
+                    </span>
+
+                    {selectedNode.tables && selectedNode.tables.length > 0 ? (
+                      selectedNode.tables.map(tbl => (
+                        <div key={tbl.name} className="bg-black rounded-lg border border-neutral-800 overflow-hidden shadow-2xl space-y-0">
+                          {/* Table Title Bar */}
+                          <div className="p-3 bg-[#171717] border-b border-neutral-800 flex items-center justify-between">
+                            <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                              <Table className="w-3.5 h-3.5 text-white" />
+                              COLECCIÓN: {tbl.name.toUpperCase()}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-black text-neutral-300 border border-neutral-800 font-bold">
+                              {tbl.columnsCount} campos
+                            </span>
+                          </div>
+
+                          {/* Technical Columns Table View */}
+                          <div className="p-3 space-y-2 text-xs">
+                            <table className="w-full text-left font-mono text-[11px]">
+                              <thead>
+                                <tr className="border-b border-neutral-800 text-neutral-500 font-bold text-[10px]">
+                                  <th className="pb-1.5">CAMPO</th>
+                                  <th className="pb-1.5">TIPO</th>
+                                  <th className="pb-1.5 text-right">ÍNDICE</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-neutral-900">
+                                <tr>
+                                  <td className="py-1 text-white font-bold">_id</td>
+                                  <td className="py-1 text-neutral-400">ObjectId</td>
+                                  <td className="py-1 text-right text-neutral-400 font-bold">PK</td>
+                                </tr>
+                                <tr>
+                                  <td className="py-1 text-white font-bold">titulo / nombre</td>
+                                  <td className="py-1 text-neutral-400">String</td>
+                                  <td className="py-1 text-right text-neutral-500">INDEX</td>
+                                </tr>
+                                <tr>
+                                  <td className="py-1 text-white font-bold">creadoEn</td>
+                                  <td className="py-1 text-neutral-400">Date</td>
+                                  <td className="py-1 text-right text-neutral-600">-</td>
+                                </tr>
+                                <tr>
+                                  <td className="py-1 text-white font-bold">estado</td>
+                                  <td className="py-1 text-neutral-400">String</td>
+                                  <td className="py-1 text-right text-neutral-600">-</td>
+                                </tr>
+                              </tbody>
+                            </table>
+
+                            {tbl.relations.length > 0 && (
+                              <div className="pt-2 border-t border-neutral-900 flex items-center gap-1.5 text-[10px] text-neutral-400">
+                                <span>Relaciones / Foreign Keys:</span>
+                                <span className="text-white font-bold">{tbl.relations.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-neutral-500 text-xs">Sin esquemas registrados.</p>
+                    )}
+                  </div>
+                )}
+
+                {currentTab === 'performance' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                      RENDIMIENTO Y MÉTRICAS DE BASE DE DATOS
+                    </span>
+
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex justify-between text-neutral-300">
+                        <span>Puerto DB:</span>
+                        <span className="text-white font-bold">:{selectedNode.port || 27017}</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-300">
+                        <span>Estado de Índices:</span>
+                        <span className="text-white font-bold">OPTIMIZADO</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-300">
+                        <span>Conexiones Activas:</span>
+                        <span className="text-white font-bold">12 / 100</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* AI / MICROSERVICE SPECIFIC TEMPLATE */}
+            {selectedNode.category === 'microservice' && (
+              <>
+                {currentTab === 'ai_models' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                      MODELOS LLM E INTELIGENCIA ARTIFICIAL
+                    </span>
+
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-white font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <Bot className="w-4 h-4 text-white" /> OpenAI GPT-4 Turbo
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-white border border-neutral-800">
+                          ACTIVO
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400 font-sans">
+                        Motor de inferencia para análisis de requerimientos.
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-white font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <Terminal className="w-4 h-4 text-white" /> FastApi Server (Python 3.11)
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-white border border-neutral-800">
+                          PORT :8000
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* SHARED COMMON STACK & ENV VARS TAB */}
+            {currentTab === 'stack' && (
               <div className="space-y-3">
                 <span className="text-[10px] uppercase font-mono tracking-wider text-neutral-500 font-bold block">
                   TECNOLOGÍAS Y PAQUETES DETECTADOS
@@ -263,7 +574,7 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
                     selectedNode.techStack.map(ts => (
                       <div key={ts} className="p-3 bg-black rounded border border-neutral-800 flex items-center justify-between font-mono">
                         <span className="font-bold text-white text-xs">{ts}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-neutral-900 text-neutral-400 border border-neutral-800">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 font-bold">
                           ACTIVO
                         </span>
                       </div>
@@ -272,231 +583,10 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
                     <p className="text-neutral-500 font-mono">Sin tecnologías registradas.</p>
                   )}
                 </div>
-
-                <div className="p-3 bg-[#171717] rounded border border-neutral-800 space-y-2 font-mono text-[11px]">
-                  <span className="text-neutral-400 font-bold block uppercase text-[10px]">INSPECCIÓN DE CÓDIGO</span>
-                  <div className="flex justify-between text-neutral-300">
-                    <span>Directorio Local:</span>
-                    <span className="text-white font-bold">{selectedNode.folderPath || '/src'}</span>
-                  </div>
-                  <div className="flex justify-between text-neutral-300">
-                    <span>Target Runtime:</span>
-                    <span className="text-white font-bold">{selectedNode.hosting || 'Node.js / Python'}</span>
-                  </div>
-                </div>
               </div>
             )}
 
-            {/* TAB 2: ENDPOINTS */}
-            {activeTab === 'endpoints' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-mono tracking-wider text-neutral-500 font-bold">
-                    RUTAS API Y ENDPOINTS ({selectedNode.endpoints?.length || 0})
-                  </span>
-                  <button
-                    onClick={() => setIsAddingEndpoint(!isAddingEndpoint)}
-                    className="px-2 py-1 bg-white text-black font-mono font-bold text-[10px] rounded flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" /> NUEVO
-                  </button>
-                </div>
-
-                {isAddingEndpoint && (
-                  <form onSubmit={handleAddEndpointSubmit} className="p-3 bg-black border border-neutral-800 rounded space-y-2 font-mono text-xs">
-                    <div className="flex gap-2">
-                      <select
-                        value={newMethod}
-                        onChange={e => setNewMethod(e.target.value as any)}
-                        className="bg-[#171717] text-white p-1.5 rounded border border-neutral-800 font-bold text-xs"
-                      >
-                        <option value="GET">GET</option>
-                        <option value="POST">POST</option>
-                        <option value="PUT">PUT</option>
-                        <option value="DELETE">DELETE</option>
-                        <option value="WS">WS</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={newPath}
-                        onChange={e => setNewPath(e.target.value)}
-                        placeholder="/api/v1/recurso"
-                        className="flex-1 bg-[#171717] text-white p-1.5 rounded border border-neutral-800 font-mono text-xs placeholder-neutral-500"
-                        required
-                      />
-                    </div>
-                    <input
-                      type="text"
-                      value={newDesc}
-                      onChange={e => setNewDesc(e.target.value)}
-                      placeholder="Descripción del endpoint"
-                      className="w-full bg-[#171717] text-white p-1.5 rounded border border-neutral-800 font-sans text-xs placeholder-neutral-500"
-                    />
-                    <button
-                      type="submit"
-                      className="w-full py-1.5 bg-white text-black font-bold rounded text-xs"
-                    >
-                      GUARDAR ENDPOINT
-                    </button>
-                  </form>
-                )}
-
-                <div className="space-y-2 font-mono">
-                  {selectedNode.endpoints && selectedNode.endpoints.length > 0 ? (
-                    selectedNode.endpoints.map(ep => (
-                      <div key={ep.id} className="p-3 bg-black rounded border border-neutral-800 space-y-1 relative group">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              ep.method === 'GET' ? 'bg-neutral-800 text-white border border-neutral-700' :
-                              ep.method === 'POST' ? 'bg-white text-black' :
-                              'bg-neutral-900 text-neutral-300 border border-neutral-800'
-                            }`}>
-                              {ep.method}
-                            </span>
-                            <span className="text-xs font-bold text-white">{ep.path}</span>
-                          </div>
-
-                          <button
-                            onClick={() => handleRemoveEndpoint(ep.id)}
-                            className="text-neutral-600 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        {ep.description && (
-                          <p className="text-[11px] text-neutral-400 font-sans">{ep.description}</p>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-neutral-500 font-mono">Sin endpoints registrados en este nodo.</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: CATEGORIZED SUBCOMPONENTS WITH SEARCH */}
-            {activeTab === 'subnodes' && (
-              <div className="space-y-3 font-mono">
-                {/* Search Bar for Subcomponents */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-                  <input
-                    type="text"
-                    value={subnodeSearch}
-                    onChange={e => setSubnodeSearch(e.target.value)}
-                    placeholder="Filtrar subcomponentes..."
-                    className="w-full pl-8 pr-3 py-1.5 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-600"
-                  />
-                </div>
-
-                {/* Render Categorized Accordion Groups */}
-                {Object.keys(getCategorizedSubnodes(selectedNode.subNodes)).length > 0 ? (
-                  Object.entries(getCategorizedSubnodes(selectedNode.subNodes)).map(([categoryTitle, items]) => (
-                    <div key={categoryTitle} className="space-y-1.5">
-                      <div className="px-2 py-1 bg-[#1A1A1A] rounded border border-neutral-800 flex items-center justify-between text-[10px] font-bold text-white uppercase">
-                        <span>{categoryTitle}</span>
-                        <span className="px-1.5 py-0.2 rounded bg-black text-neutral-400 border border-neutral-800">
-                          {items.length}
-                        </span>
-                      </div>
-
-                      <div className="space-y-1 pl-1">
-                        {items.map(sn => (
-                          <div key={sn.id} className="p-2.5 bg-black rounded border border-neutral-800 flex items-center justify-between text-xs">
-                            <div className="space-y-0.5 overflow-hidden">
-                              <span className="font-bold text-white block truncate">{sn.label}</span>
-                              {sn.details && (
-                                <span className="text-[10px] text-neutral-500 block truncate">{sn.details}</span>
-                              )}
-                            </div>
-                            <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 font-bold shrink-0 ml-2">
-                              {sn.type}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-neutral-500 text-xs">Sin subcomponentes coincidentes.</p>
-                )}
-              </div>
-            )}
-
-            {/* TAB 4: ENHANCED HIGH-CONTRAST TECHNICAL TABLES FOR DB */}
-            {activeTab === 'db' && (
-              <div className="space-y-4 font-mono">
-                <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
-                  ESQUEMAS Y TABLAS DE BASE DE DATOS ({selectedNode.tables?.length || 0})
-                </span>
-
-                {selectedNode.tables && selectedNode.tables.length > 0 ? (
-                  selectedNode.tables.map(tbl => (
-                    <div key={tbl.name} className="bg-black rounded-lg border border-neutral-800 overflow-hidden shadow-2xl space-y-0">
-                      {/* Table Title Bar */}
-                      <div className="p-3 bg-[#171717] border-b border-neutral-800 flex items-center justify-between">
-                        <span className="font-bold text-white text-xs flex items-center gap-1.5">
-                          <Table className="w-3.5 h-3.5 text-white" />
-                          COLECCIÓN: {tbl.name.toUpperCase()}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-black text-neutral-300 border border-neutral-800 font-bold">
-                          {tbl.columnsCount} campos
-                        </span>
-                      </div>
-
-                      {/* Technical Columns Table View */}
-                      <div className="p-3 space-y-2 text-xs">
-                        <table className="w-full text-left font-mono text-[11px]">
-                          <thead>
-                            <tr className="border-b border-neutral-800 text-neutral-500 font-bold text-[10px]">
-                              <th className="pb-1.5">CAMPO</th>
-                              <th className="pb-1.5">TIPO</th>
-                              <th className="pb-1.5 text-right">ÍNDICE</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-neutral-900">
-                            <tr>
-                              <td className="py-1 text-white font-bold">_id</td>
-                              <td className="py-1 text-neutral-400">ObjectId</td>
-                              <td className="py-1 text-right text-neutral-400 font-bold">PK</td>
-                            </tr>
-                            <tr>
-                              <td className="py-1 text-white font-bold">titulo / nombre</td>
-                              <td className="py-1 text-neutral-400">String</td>
-                              <td className="py-1 text-right text-neutral-500">INDEX</td>
-                            </tr>
-                            <tr>
-                              <td className="py-1 text-white font-bold">creadoEn</td>
-                              <td className="py-1 text-neutral-400">Date</td>
-                              <td className="py-1 text-right text-neutral-600">-</td>
-                            </tr>
-                            <tr>
-                              <td className="py-1 text-white font-bold">estado</td>
-                              <td className="py-1 text-neutral-400">String</td>
-                              <td className="py-1 text-right text-neutral-600">-</td>
-                            </tr>
-                          </tbody>
-                        </table>
-
-                        {tbl.relations.length > 0 && (
-                          <div className="pt-2 border-t border-neutral-900 flex items-center gap-1.5 text-[10px] text-neutral-400">
-                            <span>Relaciones / Foreign Keys:</span>
-                            <span className="text-white font-bold">{tbl.relations.join(', ')}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-neutral-500 text-xs">Este nodo no posee tablas o modelos de base de datos directos.</p>
-                )}
-              </div>
-            )}
-
-            {/* TAB 5: ENV VARS */}
-            {activeTab === 'env' && (
+            {currentTab === 'env' && (
               <div className="space-y-3 font-mono">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold">
@@ -537,13 +627,13 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
           </div>
         </div>
       ) : (
-        // PROJECT GLOBAL FICHA TÉCNICA
+        // GLOBAL PROJECT SPEC SHEET
         <div className="flex-1 p-6 space-y-6 overflow-y-auto">
           <div>
             <span className="text-[10px] uppercase font-mono tracking-wider text-neutral-500 font-bold block">
               FICHA TÉCNICA Y AUTENTICACIÓN GIT
             </span>
-            <h2 className="text-lg font-bold text-white tracking-tight mt-1">
+            <h2 className="text-lg font-bold text-white tracking-tight mt-1 font-mono">
               {project.name}
             </h2>
             <p className="text-xs text-neutral-400 mt-1 leading-relaxed font-sans">
@@ -600,22 +690,6 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
               <span>COMPLEJIDAD:</span>
               <span className="text-white font-bold">{project.complexityScore} / 100</span>
             </div>
-          </div>
-
-          <div className="space-y-3 font-mono text-xs">
-            <span className="text-neutral-500 uppercase text-[10px] font-bold block">TAREAS DE OPS / REFACTORES</span>
-            {project.pendingTasks && project.pendingTasks.length > 0 ? (
-              <ul className="space-y-1.5 text-neutral-300">
-                {project.pendingTasks.map((t, idx) => (
-                  <li key={idx} className="p-2 bg-[#171717] rounded border border-neutral-800 flex items-start gap-2 text-[11px]">
-                    <span className="text-white font-bold">•</span>
-                    <span>{t}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-neutral-500">Sin tareas pendientes registradas.</p>
-            )}
           </div>
         </div>
       )}
