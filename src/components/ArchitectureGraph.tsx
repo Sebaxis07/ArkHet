@@ -19,7 +19,10 @@ import {
   FileCode,
   Terminal,
   Lock,
-  Layers
+  Layers,
+  Cloud,
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
 
 interface ArchitectureGraphProps {
@@ -63,6 +66,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
       case 'auth': return <Shield className="w-4 h-4 text-white" />;
       case 'storage': return <HardDrive className="w-4 h-4 text-white" />;
       case 'devops': return <Terminal className="w-4 h-4 text-white" />;
+      case 'cloud': return <Cloud className="w-4 h-4 text-white" />;
       default: return <Layers className="w-4 h-4 text-white" />;
     }
   };
@@ -164,13 +168,20 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
     return groups;
   };
 
+  // Ensure Clusters include CAPA 4: DESPLIEGUE & NUBE
+  const activeClusters: ClusterZone[] = clusters.some(c => c.layer === 'cloud_deployment') ? clusters : [
+    ...clusters,
+    { id: 'zone-deploy', title: `CAPA 4: DESPLIEGUE & NUBE (LIVE PRODUCTION)`, layer: 'cloud_deployment', x: 1300, y: 80, width: 360, height: 460 }
+  ];
+
   // Compute Dynamic Adaptive Bounding Boxes for Clusters
-  const dynamicClusters = clusters.map(cluster => {
+  const dynamicClusters = activeClusters.map(cluster => {
     const memberNodes = nodes.filter(n => 
       n.clusterId === cluster.id || 
       (cluster.layer === 'presentation' && n.category === 'frontend') ||
       (cluster.layer === 'application' && (n.category === 'backend' || n.category === 'auth' || n.category === 'queue')) ||
-      (cluster.layer === 'data' && (n.category === 'database' || n.category === 'microservice' || n.category === 'storage'))
+      (cluster.layer === 'data' && (n.category === 'database' || n.category === 'microservice' || n.category === 'storage')) ||
+      (cluster.layer === 'cloud_deployment' && (n.category === 'cloud' || n.isDeployed))
     );
 
     if (memberNodes.length === 0) {
@@ -285,26 +296,26 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
                 width={cluster.width}
                 height={cluster.height}
                 rx="10"
-                fill={layerView === 'physical' ? '#0D0D0D' : '#0F0F0F'}
-                stroke={layerView === 'physical' ? '#404040' : '#262626'}
-                strokeWidth={layerView === 'physical' ? '2' : '1.5'}
-                strokeDasharray={layerView === 'code' ? '2,2' : '6,6'}
+                fill={cluster.layer === 'cloud_deployment' ? '#070707' : layerView === 'physical' ? '#0D0D0D' : '#0F0F0F'}
+                stroke={cluster.layer === 'cloud_deployment' ? '#525252' : layerView === 'physical' ? '#404040' : '#262626'}
+                strokeWidth={cluster.layer === 'cloud_deployment' ? '2' : layerView === 'physical' ? '2' : '1.5'}
+                strokeDasharray={cluster.layer === 'cloud_deployment' ? '4,4' : layerView === 'code' ? '2,2' : '6,6'}
               />
               <text
                 x={cluster.x + 16}
                 y={cluster.y + 28}
-                fill={layerView === 'physical' ? '#A3A3A3' : '#737373'}
+                fill={cluster.layer === 'cloud_deployment' ? '#FFFFFF' : layerView === 'physical' ? '#A3A3A3' : '#737373'}
                 fontSize="11"
                 fontFamily="monospace"
                 fontWeight="bold"
                 letterSpacing="1.5"
               >
-                {layerView === 'physical' ? `SERVIDORES & RACKS: ${cluster.title}` : cluster.title}
+                {cluster.title}
               </text>
             </g>
           ))}
 
-          {/* Connectors / Edges (Transformed by layerView) */}
+          {/* Connectors / Edges */}
           {edges.map(edge => {
             const sourceNode = nodes.find(n => n.id === edge.source);
             const targetNode = nodes.find(n => n.id === edge.target);
@@ -321,7 +332,6 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
             const dx = Math.abs(x2 - x1) * 0.5;
             const pathData = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 
-            // Transformed Line Text according to layerView
             const edgeLabelText = 
               layerView === 'physical' ? (edge.physicalProtocol || `PORT ${targetNode.port || 80} / TLS`) :
               layerView === 'code' ? (edge.codeInvocation || `import { ${targetNode.label} }`) :
@@ -367,14 +377,15 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
             );
           })}
 
-          {/* Node Cards (Transformed Radically by layerView) */}
+          {/* Node Cards */}
           {nodes.map(node => {
             const isSelected = selectedNodeId === node.id;
             const isExpanded = expandedNodeIds.has(node.id) || layerView === 'code';
             const subnodeGroups = groupSubnodes(node.subNodes);
             const totalSubnodes = node.subNodes?.length || 0;
+            const liveUrl = node.deploymentUrl || node.domainUrl;
 
-            const cardHeight = isExpanded ? Math.min(520, 220 + totalSubnodes * 36) : 210;
+            const cardHeight = isExpanded ? Math.min(520, 240 + totalSubnodes * 36) : 220;
 
             return (
               <g
@@ -403,9 +414,17 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
                           <span className="p-1.5 bg-black rounded border border-neutral-800 flex items-center justify-center shrink-0">
                             {getNodeIcon(node.category)}
                           </span>
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800 font-bold truncate">
-                            {node.category}
-                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            {node.isDeployed && (
+                              <span className="px-2 py-0.5 rounded bg-white text-black font-bold text-[9px] flex items-center gap-1">
+                                <CheckCircle2 className="w-2.5 h-2.5 text-black" /> PROD
+                              </span>
+                            )}
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800 font-bold truncate">
+                              {node.category}
+                            </span>
+                          </div>
                         </div>
 
                         <h3 className="text-xs font-bold text-white tracking-tight font-mono truncate leading-snug">
@@ -416,11 +435,25 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
                         </p>
                       </div>
 
+                      {/* Direct Clickable Live Deployment Button */}
+                      {node.isDeployed && liveUrl && (
+                        <a
+                          href={liveUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="px-2.5 py-1.5 bg-black hover:bg-neutral-900 border border-neutral-700 rounded text-white font-mono font-bold text-[10px] flex items-center justify-between transition-colors my-1"
+                        >
+                          <span className="truncate">🌐 {liveUrl}</span>
+                          <ExternalLink className="w-3 h-3 text-white shrink-0 ml-1" />
+                        </a>
+                      )}
+
                       {totalSubnodes > 0 && (
-                        <div className="my-1.5 pt-2 border-t border-neutral-800/80 font-mono text-[10px]">
+                        <div className="my-1 pt-1.5 border-t border-neutral-800/80 font-mono text-[10px]">
                           <div 
                             onClick={e => toggleNodeExpansion(node.id, e)}
-                            className="flex items-center justify-between px-2.5 py-1.5 bg-black rounded border border-neutral-800 hover:border-neutral-600 transition-colors text-neutral-300 font-bold"
+                            className="flex items-center justify-between px-2.5 py-1 bg-black rounded border border-neutral-800 hover:border-neutral-600 transition-colors text-neutral-300 font-bold"
                           >
                             <span className="flex items-center gap-1.5">
                               <Box className="w-3.5 h-3.5 text-white" />
@@ -453,14 +486,14 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
                       <div className="space-y-2">
                         {/* Server Rack Bar */}
                         <div className="flex items-center justify-between bg-black p-2 rounded border border-neutral-800">
-                          <div className="flex items-center gap-1.5">
-                            <Server className="w-4 h-4 text-white animate-pulse" />
-                            <span className="font-bold text-white text-[11px] uppercase tracking-wider">
-                              HOST: {node.hosting || 'NODE.JS RUNTIME'}
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Server className="w-4 h-4 text-white animate-pulse shrink-0" />
+                            <span className="font-bold text-white text-[11px] uppercase tracking-wider truncate">
+                              HOST: {node.cloudProvider || node.hosting || 'NODE.JS RUNTIME'}
                             </span>
                           </div>
                           {node.port && (
-                            <span className="px-2 py-0.5 rounded bg-white text-black font-bold text-[10px]">
+                            <span className="px-2 py-0.5 rounded bg-white text-black font-bold text-[10px] shrink-0">
                               PORT :{node.port}
                             </span>
                           )}
@@ -470,12 +503,20 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
                           <h3 className="text-xs font-bold text-white tracking-tight font-mono truncate">
                             {node.label}
                           </h3>
-                          {node.domainUrl && (
-                            <span className="text-[10px] text-neutral-400 font-mono truncate block">
-                              🌐 {node.domainUrl}
-                            </span>
-                          )}
                         </div>
+
+                        {liveUrl && (
+                          <a
+                            href={liveUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="px-2.5 py-1 bg-black hover:bg-neutral-900 border border-neutral-700 rounded text-neutral-200 font-mono font-bold text-[10px] flex items-center justify-between transition-colors"
+                          >
+                            <span className="truncate">🌐 {liveUrl}</span>
+                            <ExternalLink className="w-3 h-3 text-white shrink-0 ml-1" />
+                          </a>
+                        )}
                       </div>
 
                       {/* Server Hardware Metrics Badges */}

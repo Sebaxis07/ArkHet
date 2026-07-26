@@ -64,6 +64,9 @@ export interface ArchNode {
   tables?: DBSchemaTable[];
   envVars?: EnvVariable[];
   subNodes?: SubNode[];
+  isDeployed?: boolean;
+  deploymentUrl?: string;
+  cloudProvider?: string;
 }
 
 export interface ArchEdge {
@@ -79,7 +82,7 @@ export interface ArchEdge {
 export interface ClusterZone {
   id: string;
   title: string;
-  layer: 'presentation' | 'application' | 'data' | 'infrastructure';
+  layer: 'presentation' | 'application' | 'data' | 'infrastructure' | 'cloud_deployment';
   x: number;
   y: number;
   width: number;

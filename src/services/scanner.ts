@@ -294,11 +294,14 @@ export function autoGenerateProjectFromManifests(
   const clusters: ClusterZone[] = [
     { id: 'zone-fe', title: `CAPA 1: PRESENTACIÓN CLIENTE`, layer: 'presentation', x: 40, y: 80, width: 340, height: 460 },
     { id: 'zone-be', title: `CAPA 2: SERVIDORES API Y NEGOCIO`, layer: 'application', x: 420, y: 80, width: 440, height: 460 },
-    { id: 'zone-db', title: `CAPA 3: PERSISTENCIA E INFRAESTRUCTURA`, layer: 'data', x: 900, y: 80, width: 360, height: 460 }
+    { id: 'zone-db', title: `CAPA 3: PERSISTENCIA Y MICROSERVICIOS`, layer: 'data', x: 900, y: 80, width: 360, height: 460 },
+    { id: 'zone-deploy', title: `CAPA 4: DESPLIEGUE Y NUBE (LIVE PRODUCTION)`, layer: 'cloud_deployment', x: 1300, y: 80, width: 360, height: 460 }
   ];
 
   const nodes: ArchNode[] = [];
   const edges: ArchEdge[] = [];
+
+  const defaultVercelUrl = `https://${name.toLowerCase().replace(/\s+/g, '')}.vercel.app`;
 
   if (isMultiModuleProject) {
     // 1. FRONTEND NODE
@@ -314,11 +317,14 @@ export function autoGenerateProjectFromManifests(
       techStack: ['React 19', 'TypeScript', 'Vite', 'Tailwind CSS'],
       port: 5173,
       hosting: 'Vite / Vercel Serverless',
-      domainUrl: `https://${name.toLowerCase().replace(/\s+/g, '')}.vercel.app`,
+      domainUrl: defaultVercelUrl,
       cpuRam: '1 vCPU / 2GB RAM',
       sslEnabled: true,
       folderPath: feFolder ? feFolder.path : '/frontend',
       status: 'healthy',
+      isDeployed: true,
+      deploymentUrl: defaultVercelUrl,
+      cloudProvider: 'Vercel Serverless',
       subNodes: deepAnalysis.extractedComponents.length > 0 ? deepAnalysis.extractedComponents : [
         { id: 'sn-fe-1', label: `UI Components`, type: 'component', details: '/frontend/src/components', linesOfCode: 1420 },
         { id: 'sn-fe-2', label: 'ApiClient', type: 'service', details: '/frontend/src/api', linesOfCode: 380 }
@@ -338,11 +344,14 @@ export function autoGenerateProjectFromManifests(
       techStack: ['Express.js', 'Node.js', 'Mongoose ORM', 'JWT Auth'],
       port: 5000,
       hosting: 'Node.js Runtime / Vercel API',
-      domainUrl: `https://api.${name.toLowerCase().replace(/\s+/g, '')}.com`,
+      domainUrl: `${defaultVercelUrl}/api`,
       cpuRam: '2 vCPU / 4GB RAM',
       sslEnabled: true,
       folderPath: beFolder ? beFolder.path : '/backend',
       status: 'healthy',
+      isDeployed: true,
+      deploymentUrl: `${defaultVercelUrl}/api`,
+      cloudProvider: 'Vercel Serverless / Node.js',
       envVars: deepAnalysis.extractedEnvVars.length > 0 ? deepAnalysis.extractedEnvVars : [
         { key: 'PORT', sampleValue: '5000', required: true },
         { key: 'MONGODB_URI', sampleValue: 'mongodb+srv://user:pass@cluster.mongodb.net', isSecret: true, required: true },
@@ -377,6 +386,7 @@ export function autoGenerateProjectFromManifests(
         sslEnabled: false,
         folderPath: aiFolder ? aiFolder.path : '/ai-service',
         status: 'healthy',
+        isDeployed: false,
         subNodes: [
           { id: 'sn-ai-1', label: 'PromptEngine', type: 'service', details: 'Inferencia LLM', linesOfCode: 420 },
           { id: 'sn-ai-2', label: 'EmbeddingIndexer', type: 'worker', details: 'Vectorización Contextual', linesOfCode: 310 }
@@ -409,6 +419,9 @@ export function autoGenerateProjectFromManifests(
         hosting: 'Redis Enterprise Cloud',
         cpuRam: '1 vCPU / 2GB RAM',
         status: 'healthy',
+        isDeployed: true,
+        deploymentUrl: 'redis://redis-cloud.redislabs.com:6379',
+        cloudProvider: 'Redis Cloud',
         subNodes: [
           { id: 'sn-q1', label: 'NotificationWorker', type: 'worker', details: 'Procesador de correos', linesOfCode: 180 }
         ]
@@ -438,7 +451,8 @@ export function autoGenerateProjectFromManifests(
         y: 300,
         techStack: ['Docker Container', 'GitHub Actions', 'Nginx Proxy'],
         folderPath: devopsFolder ? devopsFolder.path : '/docker',
-        status: 'healthy'
+        status: 'healthy',
+        isDeployed: false
       });
     }
 
@@ -455,7 +469,8 @@ export function autoGenerateProjectFromManifests(
         y: 440,
         techStack: ['AWS S3 Bucket', 'Multer Storage'],
         folderPath: uploadFolder ? uploadFolder.path : '/uploads',
-        status: 'healthy'
+        status: 'healthy',
+        isDeployed: false
       });
 
       edges.push({
@@ -484,15 +499,36 @@ export function autoGenerateProjectFromManifests(
       cpuRam: 'Dedicated Cluster M10',
       sslEnabled: true,
       status: 'healthy',
+      isDeployed: true,
+      deploymentUrl: 'https://cloud.mongodb.com',
+      cloudProvider: 'MongoDB Atlas Cloud',
       tables: deepAnalysis.extractedModels.length > 0 ? deepAnalysis.extractedModels : [
         { name: `${name}Data`, columnsCount: 10, relations: ['Usuarios'] },
         { name: 'Usuarios', columnsCount: 8, relations: [] }
       ]
     });
 
+    // 8. DEPLOYMENT NODE (CAPA 4)
+    nodes.push({
+      id: 'node-cloud-deploy',
+      label: `Entorno Producción Vercel`,
+      category: 'cloud',
+      clusterId: 'zone-deploy',
+      description: `Despliegue de producción activo en Vercel Edge Network`,
+      x: 1330,
+      y: 140,
+      techStack: ['Vercel Cloud', 'HTTPS SSL', 'CDN Edge'],
+      domainUrl: defaultVercelUrl,
+      status: 'healthy',
+      isDeployed: true,
+      deploymentUrl: defaultVercelUrl,
+      cloudProvider: 'Vercel Serverless Network'
+    });
+
     edges.push(
       { id: 'e-fe-be', source: 'node-fe-app', target: 'node-be-gateway', label: 'HTTP REST / JSON', protocol: 'HTTP', physicalProtocol: 'TLS/HTTPS 443', codeInvocation: 'fetch("/api/data")' },
-      { id: 'e-be-db', source: 'node-be-gateway', target: 'node-db-main', label: 'Mongoose ODM Connection', protocol: 'ORM', physicalProtocol: 'MongoDB Wire Protocol 27017', codeInvocation: 'mongoose.connect(URI)' }
+      { id: 'e-be-db', source: 'node-be-gateway', target: 'node-db-main', label: 'Mongoose ODM Connection', protocol: 'ORM', physicalProtocol: 'MongoDB Wire Protocol 27017', codeInvocation: 'mongoose.connect(URI)' },
+      { id: 'e-be-cloud', source: 'node-be-gateway', target: 'node-cloud-deploy', label: 'Live Vercel Auto-Deploy', protocol: 'HTTPS', physicalProtocol: 'HTTPS Port 443', codeInvocation: 'git push origin main' }
     );
   } else {
     // Single directory architecture
@@ -511,6 +547,7 @@ export function autoGenerateProjectFromManifests(
         domainUrl: `http://localhost:5173`,
         folderPath: '/src',
         status: 'healthy',
+        isDeployed: false,
         subNodes: deepAnalysis.extractedComponents.length > 0 ? deepAnalysis.extractedComponents : [
           { id: 'sn-fe-1', label: `${name}UI`, type: 'component' }
         ]
@@ -529,6 +566,7 @@ export function autoGenerateProjectFromManifests(
         domainUrl: `http://localhost:5000`,
         folderPath: '/server',
         status: 'healthy',
+        isDeployed: false,
         subNodes: deepAnalysis.extractedBackendServices,
         endpoints: deepAnalysis.extractedEndpoints
       },
@@ -544,6 +582,9 @@ export function autoGenerateProjectFromManifests(
         port: 27017,
         hosting: 'MongoDB Atlas Cloud',
         status: 'healthy',
+        isDeployed: true,
+        deploymentUrl: 'https://cloud.mongodb.com',
+        cloudProvider: 'MongoDB Atlas Cloud',
         tables: deepAnalysis.extractedModels
       }
     );

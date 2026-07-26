@@ -23,8 +23,9 @@ import {
   Layout,
   Code2,
   Terminal,
-  Bot,
-  Radio
+  Cloud,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 interface TechSpecSidebarProps {
@@ -52,6 +53,10 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
   const [newDesc, setNewDesc] = useState('');
   const [isAddingEndpoint, setIsAddingEndpoint] = useState(false);
 
+  // Deployment Config State inside Sidebar
+  const [editUrl, setEditUrl] = useState(selectedNode?.deploymentUrl || selectedNode?.domainUrl || '');
+  const [editProvider, setEditProvider] = useState(selectedNode?.cloudProvider || selectedNode?.hosting || 'Vercel Serverless');
+
   const getNodeIcon = (category: string) => {
     switch (category) {
       case 'frontend': return <Globe className="w-4 h-4 text-white" />;
@@ -62,8 +67,32 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
       case 'auth': return <Shield className="w-4 h-4 text-white" />;
       case 'storage': return <HardDrive className="w-4 h-4 text-white" />;
       case 'devops': return <Terminal className="w-4 h-4 text-white" />;
+      case 'cloud': return <Cloud className="w-4 h-4 text-white" />;
       default: return <Layers className="w-4 h-4 text-white" />;
     }
+  };
+
+  const handleToggleDeployed = (isDeployed: boolean) => {
+    if (!selectedNode) return;
+    const updated: ArchNode = {
+      ...selectedNode,
+      isDeployed,
+      deploymentUrl: isDeployed ? (editUrl || selectedNode.domainUrl || `https://${project.name.toLowerCase().replace(/\s+/g, '')}.vercel.app`) : undefined,
+      cloudProvider: isDeployed ? editProvider : undefined
+    };
+    onUpdateNode(updated);
+  };
+
+  const handleSaveDeploymentInfo = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedNode) return;
+    const updated: ArchNode = {
+      ...selectedNode,
+      isDeployed: true,
+      deploymentUrl: editUrl,
+      cloudProvider: editProvider
+    };
+    onUpdateNode(updated);
   };
 
   const handleAddEndpointSubmit = (e: React.FormEvent) => {
@@ -102,19 +131,23 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
     onUpdateNode({ ...selectedNode, status: newStatus });
   };
 
-  // Category Tabs Definition (8 Templates)
+  // Category Tabs Definition (Includes DESPLIEGUE tab for all nodes)
   const renderCategoryTabs = () => {
     if (!selectedNode) return null;
     const cat = selectedNode.category;
 
+    const commonTabs = [{ id: 'deploy', label: '🌐 DESPLIEGUE' }];
+
     if (cat === 'frontend') {
       return [
+        ...commonTabs,
         { id: 'ui', label: 'VISTAS & UI' },
         { id: 'consumed_api', label: 'CONSUMO API' },
         { id: 'stack', label: 'PAQUETES' }
       ];
     } else if (cat === 'backend') {
       return [
+        ...commonTabs,
         { id: 'endpoints', label: `ENDPOINTS (${selectedNode.endpoints?.length || 0})` },
         { id: 'services', label: `SERVICIOS (${selectedNode.subNodes?.length || 0})` },
         { id: 'env', label: 'VARS ENV' },
@@ -122,42 +155,49 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
       ];
     } else if (cat === 'database') {
       return [
+        ...commonTabs,
         { id: 'tables', label: `ESQUEMAS DB (${selectedNode.tables?.length || 0})` },
         { id: 'performance', label: 'PERFORMANCE' },
         { id: 'stack', label: 'DRIVER' }
       ];
     } else if (cat === 'microservice') {
       return [
+        ...commonTabs,
         { id: 'ai_models', label: 'MOTOR IA' },
         { id: 'services', label: 'FASTAPI/SERVICES' },
         { id: 'stack', label: 'PAQUETES PYTHON' }
       ];
     } else if (cat === 'queue') {
       return [
+        ...commonTabs,
         { id: 'queue_events', label: 'EVENTOS & QUEUES' },
         { id: 'workers', label: 'WORKERS' },
         { id: 'stack', label: 'BROKER STACK' }
       ];
     } else if (cat === 'auth') {
       return [
+        ...commonTabs,
         { id: 'identity', label: 'PROVEEDOR SSO' },
         { id: 'env', label: 'KEYS & SECRETS' },
         { id: 'stack', label: 'AUTH STACK' }
       ];
     } else if (cat === 'storage') {
       return [
+        ...commonTabs,
         { id: 'buckets', label: 'BUCKETS & S3' },
         { id: 'permissions', label: 'PERMISOS' },
         { id: 'stack', label: 'STORAGE STACK' }
       ];
     } else if (cat === 'devops') {
       return [
+        ...commonTabs,
         { id: 'docker', label: 'CONTAINERS DOCKER' },
         { id: 'pipeline', label: 'CI/CD PIPELINE' },
         { id: 'stack', label: 'INFRA STACK' }
       ];
     } else {
       return [
+        ...commonTabs,
         { id: 'stack', label: 'STACK' },
         { id: 'subnodes', label: `MÓDULOS (${selectedNode.subNodes?.length || 0})` }
       ];
@@ -165,7 +205,7 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
   };
 
   const tabs = renderCategoryTabs() || [];
-  const currentTab = tabs.some(t => t.id === activeTab) ? activeTab : tabs[0]?.id || 'stack';
+  const currentTab = tabs.some(t => t.id === activeTab) ? activeTab : tabs[0]?.id || 'deploy';
 
   return (
     <div className="w-80 h-full bg-[#121212] border-l border-neutral-800 flex flex-col z-20 font-sans text-neutral-200 select-none">
@@ -255,8 +295,120 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
             ))}
           </div>
 
-          {/* Tab Content Body (Category Specific) */}
+          {/* Tab Content Body */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 font-sans text-xs">
+            {/* USER DEPLOYMENT CONFIRMATION TAB (DESPLIEGUE) */}
+            {currentTab === 'deploy' && (
+              <div className="space-y-4 font-mono">
+                <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                  CONFIRMACIÓN Y ENLACE DE DESPLIEGUE EN VIVO
+                </span>
+
+                {/* User Confirmation Toggle Card */}
+                <div className="p-3 bg-black rounded border border-neutral-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-neutral-300">ESTADO DE PRODUCCIÓN:</span>
+                    {selectedNode.isDeployed ? (
+                      <span className="px-2 py-0.5 bg-white text-black font-bold rounded text-[10px] flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3 text-black" /> 🟢 DESPLEGADO EN NUBE
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-neutral-900 text-neutral-400 font-bold rounded border border-neutral-800 text-[10px] flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 text-neutral-500" /> ⚪ SOLO EN LOCAL
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-1 border-t border-neutral-900">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleDeployed(false)}
+                      className={`flex-1 py-1.5 rounded text-[11px] font-bold transition-all border ${
+                        !selectedNode.isDeployed ? 'bg-neutral-800 text-white border-neutral-600' : 'bg-black text-neutral-500 border-neutral-800'
+                      }`}
+                    >
+                      SOLO LOCAL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleDeployed(true)}
+                      className={`flex-1 py-1.5 rounded text-[11px] font-bold transition-all ${
+                        selectedNode.isDeployed ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-300 border border-neutral-800'
+                      }`}
+                    >
+                      🟢 DESPLEGADO
+                    </button>
+                  </div>
+                </div>
+
+                {/* Deployment Config Form */}
+                {selectedNode.isDeployed ? (
+                  <form onSubmit={handleSaveDeploymentInfo} className="p-3.5 bg-black border border-neutral-800 rounded-lg space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-neutral-400 uppercase font-bold block">
+                        URL pública en vivo (Live Production Domain):
+                      </label>
+                      <input
+                        type="url"
+                        value={editUrl}
+                        onChange={e => setEditUrl(e.target.value)}
+                        placeholder="https://tu-proyecto.vercel.app"
+                        className="w-full px-3 py-1.5 bg-[#171717] border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white font-mono"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-neutral-400 uppercase font-bold block">
+                        Proveedor Cloud Hosting:
+                      </label>
+                      <select
+                        value={editProvider}
+                        onChange={e => setEditProvider(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-[#171717] border border-neutral-800 rounded text-xs text-white font-mono font-bold focus:outline-none"
+                      >
+                        <option value="Vercel Serverless Network">Vercel Serverless</option>
+                        <option value="Render Cloud API">Render.com</option>
+                        <option value="Railway App Platform">Railway.app</option>
+                        <option value="MongoDB Atlas Cloud Cluster">MongoDB Atlas Cloud</option>
+                        <option value="AWS EC2 / S3 Storage">AWS Cloud (S3 / EC2)</option>
+                        <option value="Cloudinary Media Storage">Cloudinary</option>
+                        <option value="Fly.io Container Platform">Fly.io</option>
+                        <option value="Servidor VPS / Auto-Alojado">Servidor VPS Propio</option>
+                      </select>
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      {editUrl && (
+                        <a
+                          href={editUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 py-2 bg-white text-black font-bold rounded text-[11px] text-center flex items-center justify-center gap-1.5 hover:bg-neutral-200 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-black" />
+                          PROBAR URL EN VIVO
+                        </a>
+                      )}
+                      <button
+                        type="submit"
+                        className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded text-[11px]"
+                      >
+                        GUARDAR
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="p-4 bg-black border border-neutral-800 rounded-lg text-center space-y-2">
+                    <Cloud className="w-6 h-6 mx-auto text-neutral-500" />
+                    <p className="text-[11px] text-neutral-400 font-mono">
+                      Este nodo está configurado como <strong>SOLO LOCAL</strong>. Si ya lo desplegaste en Vercel, Render o MongoDB Atlas, haz clic en el botón superior para ingresar su enlace en vivo.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* FRONTEND SPECIFIC TEMPLATE */}
             {selectedNode.category === 'frontend' && (
               <>
@@ -545,155 +697,6 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
                       <div className="flex justify-between text-neutral-300">
                         <span>Estado de Índices:</span>
                         <span className="text-white font-bold">OPTIMIZADO (B-TREE)</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* QUEUE / BROKER SPECIFIC TEMPLATE (NEW) */}
-            {selectedNode.category === 'queue' && (
-              <>
-                {currentTab === 'queue_events' && (
-                  <div className="space-y-3 font-mono">
-                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
-                      COLAS DE EVENTOS ASÍNCRONOS Y BROKER
-                    </span>
-
-                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
-                      <div className="flex justify-between items-center font-bold text-white">
-                        <span className="flex items-center gap-1.5">
-                          <Radio className="w-4 h-4 text-white" /> BullMQ Redis Queue
-                        </span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-white border border-neutral-800">
-                          PORT :6379
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-neutral-400">
-                        Dispatcher asíncrono para enviar notificaciones e informes.
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {currentTab === 'workers' && (
-                  <div className="space-y-2 font-mono">
-                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-1">
-                      <div className="flex justify-between text-xs font-bold text-white">
-                        <span>NotificationWorker</span>
-                        <span className="text-[9px] text-neutral-500">2 CONCURRENCY</span>
-                      </div>
-                      <p className="text-[10px] text-neutral-400">Procesador en segundo plano para emails y PDFs</p>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* AUTH / IDENTITY PROVIDER SPECIFIC TEMPLATE (NEW) */}
-            {selectedNode.category === 'auth' && (
-              <>
-                {currentTab === 'identity' && (
-                  <div className="space-y-3 font-mono">
-                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
-                      PROVEEDOR DE IDENTIDAD Y SESIONES SSO
-                    </span>
-
-                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
-                      <div className="flex justify-between text-neutral-300">
-                        <span>Mecanismo Auth:</span>
-                        <span className="text-white font-bold">JWT Bearer Token / OAuth2</span>
-                      </div>
-                      <div className="flex justify-between text-neutral-300">
-                        <span>Expiración de Sesión:</span>
-                        <span className="text-white font-bold">30 Días</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* STORAGE SPECIFIC TEMPLATE (NEW) */}
-            {selectedNode.category === 'storage' && (
-              <>
-                {currentTab === 'buckets' && (
-                  <div className="space-y-3 font-mono">
-                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
-                      BUCKETS Y REPOSITORIOS DE ARCHIVOS
-                    </span>
-
-                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
-                      <div className="flex justify-between text-neutral-300">
-                        <span>Tipo Almacenamiento:</span>
-                        <span className="text-white font-bold">AWS S3 / Multer Uploads</span>
-                      </div>
-                      <div className="flex justify-between text-neutral-300">
-                        <span>Archivos Permitidos:</span>
-                        <span className="text-white font-bold">PDF, PNG, JSON, ZIP</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* DEVOPS SPECIFIC TEMPLATE (NEW) */}
-            {selectedNode.category === 'devops' && (
-              <>
-                {currentTab === 'docker' && (
-                  <div className="space-y-3 font-mono">
-                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
-                      CONTAINERS DOCKER E INFRAESTRUCTURA CI/CD
-                    </span>
-
-                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
-                      <div className="flex justify-between text-neutral-300">
-                        <span>Base Image:</span>
-                        <span className="text-white font-bold">node:20-alpine / python:3.11-slim</span>
-                      </div>
-                      <div className="flex justify-between text-neutral-300">
-                        <span>CI/CD Pipeline:</span>
-                        <span className="text-white font-bold">GitHub Actions Auto-Deploy</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* AI / MICROSERVICE SPECIFIC TEMPLATE */}
-            {selectedNode.category === 'microservice' && (
-              <>
-                {currentTab === 'ai_models' && (
-                  <div className="space-y-3 font-mono">
-                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
-                      MODELOS LLM E INTELIGENCIA ARTIFICIAL
-                    </span>
-
-                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
-                      <div className="flex items-center justify-between text-white font-bold">
-                        <span className="flex items-center gap-1.5">
-                          <Bot className="w-4 h-4 text-white" /> OpenAI GPT-4 Turbo
-                        </span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-white border border-neutral-800">
-                          ACTIVO
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-neutral-400 font-sans">
-                        Motor de inferencia para análisis de requerimientos.
-                      </p>
-                    </div>
-
-                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
-                      <div className="flex items-center justify-between text-white font-bold">
-                        <span className="flex items-center gap-1.5">
-                          <Terminal className="w-4 h-4 text-white" /> FastApi Server (Python 3.11)
-                        </span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-white border border-neutral-800">
-                          PORT :8000
-                        </span>
                       </div>
                     </div>
                   </div>
