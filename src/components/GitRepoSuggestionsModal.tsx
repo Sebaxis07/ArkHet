@@ -49,12 +49,22 @@ export const GitRepoSuggestionsModal: React.FC<GitRepoSuggestionsModalProps> = (
 
   const handleStartImporting = (repoItem: GithubRepoItem) => {
     const tokenToUse = customToken || user.token || user.gitLinkedAccount?.accessToken || '';
+    
+    let progressCallback: ((pct: number, stepText: string) => void) | null = null;
+
     const importPromise = importProjectFromGithubRepo(
       tokenToUse,
       repoItem.owner.login,
       repoItem.name,
-      repoItem.default_branch || 'main'
+      repoItem.default_branch || 'main',
+      (pct, stepText) => {
+        if (progressCallback) progressCallback(pct, stepText);
+      }
     );
+
+    (importPromise as any).subscribeProgress = (fn: (pct: number, stepText: string) => void) => {
+      progressCallback = fn;
+    };
 
     onImportStart(repoItem.name, importPromise);
     onClose();

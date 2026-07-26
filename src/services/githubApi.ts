@@ -65,10 +65,17 @@ export async function importProjectFromGithubRepo(
   const fetchedFiles: { name: string; path: string; content: string }[] = [];
   const folderTree: FolderItem[] = [];
 
-  if (onProgress) onProgress(10, `Iniciando conexión con GitHub API para ${owner}/${repo}...`);
+  let progressListeners: ((percent: number, stepText: string) => void)[] = [];
+  if (onProgress) progressListeners.push(onProgress);
+
+  const reportProgress = (pct: number, text: string) => {
+    progressListeners.forEach(fn => fn(pct, text));
+  };
+
+  reportProgress(10, `Iniciando conexión con GitHub API para ${owner}/${repo}...`);
 
   try {
-    if (onProgress) onProgress(20, `Consultando árbol recursivo de directorios (branch: ${defaultBranch})...`);
+    reportProgress(20, `Verificando repositorio y rama por defecto...`);
 
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github.v3+json'
@@ -77,15 +84,40 @@ export async function importProjectFromGithubRepo(
       headers['Authorization'] = `token ${token}`;
     }
 
-    const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`, {
+    // 1. Fetch Repository Details to get real default_branch
+    let branchToUse = defaultBranch || 'main';
+    try {
+      const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+      if (repoRes.ok) {
+        const repoDetails = await repoRes.json();
+        if (repoDetails.default_branch) {
+          branchToUse = repoDetails.default_branch;
+        }
+      }
+    } catch (e) {
+      // Use fallback branch
+    }
+
+    reportProgress(35, `Consultando árbol recursivo de directorios (branch: ${branchToUse})...`);
+
+    // 2. Fetch Recursive Git Tree
+    let treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branchToUse}?recursive=1`, {
       headers
     });
+
+    // Fallback try 'master' if 'main' returned 404
+    if (!treeRes.ok && branchToUse !== 'master') {
+      branchToUse = 'master';
+      treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/master?recursive=1`, {
+        headers
+      });
+    }
 
     if (treeRes.ok) {
       const treeData = await treeRes.json();
       const treeItems: any[] = treeData.tree || [];
 
-      if (onProgress) onProgress(40, `Analizando estructura de ${treeItems.length} archivos y microservicios...`);
+      reportProgress(55, `Analizando estructura de ${treeItems.length} archivos y microservicios...`);
 
       const folderMap = new Map<string, FolderItem>();
       const manifestItems = treeItems.filter((item: any) => 
@@ -99,8 +131,6 @@ export async function importProjectFromGithubRepo(
           /\.(js|ts|jsx|tsx|py)$/i.test(item.path)
         )
       );
-
-      let processedCount = 0;
 
       for (const item of treeItems) {
         const parts = item.path.split('/');
@@ -128,14 +158,14 @@ export async function importProjectFromGithubRepo(
         }
       }
 
-      // Download content for key manifests and microservice source files with progress
-      for (const item of manifestItems) {
+      // Limit max parallel manifest fetches to 15 to avoid GitHub API rate limiting
+      const itemsToFetch = manifestItems.slice(0, 15);
+      let processedCount = 0;
+
+      for (const item of itemsToFetch) {
         processedCount++;
-        const currentPct = Math.min(85, 40 + Math.round((processedCount / Math.max(1, manifestItems.length)) * 45));
-        
-        if (onProgress) {
-          onProgress(currentPct, `Descargando manifest/código: ${item.path}`);
-        }
+        const currentPct = Math.min(88, 55 + Math.round((processedCount / Math.max(1, itemsToFetch.length)) * 30));
+        reportProgress(currentPct, `Leyendo archivo: ${item.path}`);
 
         try {
           const rawHeaders: Record<string, string> = {
@@ -154,15 +184,17 @@ export async function importProjectFromGithubRepo(
             fetchedFiles.push({ name: item.path.split('/').pop() || item.path, path: `/${item.path}`, content });
           }
         } catch (e) {
-          // Ignore single file download error
+          // Ignore single file fetch failure
         }
       }
+    } else {
+      reportProgress(70, `Generando modelo de arquitectura base para ${repo}...`);
     }
   } catch (e) {
     console.warn('Could not fetch recursive GitHub tree:', e);
   }
 
-  if (onProgress) onProgress(90, `Generando arquitectura multi-módulo y detectando nodos...`);
+  reportProgress(92, `Construyendo mapa de nodos de arquitectura y microservicios...`);
 
   const gitInfo: GitInfo = {
     remoteUrl: `https://github.com/${owner}/${repo}`,
@@ -179,7 +211,23 @@ export async function importProjectFromGithubRepo(
     gitInfo
   );
 
-  if (onProgress) onProgress(100, `¡Mapa de arquitectura generado con éxito!`);
+  reportProgress(100, `¡Mapa de arquitectura generado con éxito!`);
+
+  // Allow promise subscribers for live progress
+  (project as any).subscribeProgress = (fn: (percent: number, stepText: string) => void) => {
+    progressListeners.push(fn);
+  };
 
   return project;
+}
+
+// Function wrapper that connects progress listeners seamlessly
+export function importProjectWithProgress(
+  token: string,
+  owner: string,
+  repo: string,
+  defaultBranch = 'main',
+  onProgress?: (percent: number, stepText: string) => void
+): Promise<Project> {
+  return importProjectFromGithubRepo(token, owner, repo, defaultBranch, onProgress);
 }
