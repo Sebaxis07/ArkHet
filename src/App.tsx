@@ -15,6 +15,7 @@ import { UserProfileWidget } from './components/UserProfileWidget';
 import { GitRepoSuggestionsModal } from './components/GitRepoSuggestionsModal';
 import { ImportProgressModal } from './components/ImportProgressModal';
 import { scanNativeDirectoryHandle } from './services/scanner';
+import { fetchUserProjectsCloud, syncProjectCloud, clearStoredAuthToken } from './services/apiClient';
 import { 
   Download, 
   History, 
@@ -95,6 +96,27 @@ export function App() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showGitAuthModal, setShowGitAuthModal] = useState(false);
   const [showRepoSuggestionsModal, setShowRepoSuggestionsModal] = useState(false);
+
+  // Load Cloud Projects from MongoDB Atlas on mount or when userProfile changes
+  useEffect(() => {
+    async function loadCloudProjects() {
+      if (userProfile) {
+        const cloudProjs = await fetchUserProjectsCloud();
+        if (cloudProjs.length > 0) {
+          setProjects(prev => {
+            const merged = [...prev];
+            cloudProjs.forEach(cp => {
+              const idx = merged.findIndex(p => p.name === cp.name);
+              if (idx >= 0) merged[idx] = cp;
+              else merged.push(cp);
+            });
+            return merged;
+          });
+        }
+      }
+    }
+    loadCloudProjects();
+  }, [userProfile]);
 
   useEffect(() => {
     try {
@@ -219,17 +241,26 @@ export function App() {
 
   const handleUpdateNodes = (newNodes: ArchNode[]) => {
     if (!activeProjectId) return;
-    setProjects(prev => prev.map(p => p.id === activeProjectId ? { ...p, nodes: newNodes } : p));
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        const updated = { ...p, nodes: newNodes };
+        syncProjectCloud(updated);
+        return updated;
+      }
+      return p;
+    }));
   };
 
   const handleUpdateSingleNode = (updatedNode: ArchNode) => {
     if (!activeProjectId) return;
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
-        return {
+        const updated = {
           ...p,
           nodes: p.nodes.map(n => n.id === updatedNode.id ? updatedNode : n)
         };
+        syncProjectCloud(updated);
+        return updated;
       }
       return p;
     }));
@@ -239,11 +270,13 @@ export function App() {
     if (!activeProjectId) return;
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
-        return {
+        const updated = {
           ...p,
           nodes: p.nodes.filter(n => n.id !== nodeId),
           edges: p.edges.filter(e => e.source !== nodeId && e.target !== nodeId)
         };
+        syncProjectCloud(updated);
+        return updated;
       }
       return p;
     }));
@@ -274,7 +307,14 @@ export function App() {
         { id: `sn-${Date.now()}-2`, label: 'CustomService', type: 'service' }
       ]
     };
-    setProjects(prev => prev.map(p => p.id === activeProjectId ? { ...p, nodes: [...p.nodes, newNode] } : p));
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        const updated = { ...p, nodes: [...p.nodes, newNode] };
+        syncProjectCloud(updated);
+        return updated;
+      }
+      return p;
+    }));
     setSelectedNodeId(newNodeId);
   };
 
@@ -290,7 +330,9 @@ export function App() {
     };
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
-        return { ...p, snapshots: [newSnapshot, ...(p.snapshots || [])] };
+        const updated = { ...p, snapshots: [newSnapshot, ...(p.snapshots || [])] };
+        syncProjectCloud(updated);
+        return updated;
       }
       return p;
     }));
@@ -300,7 +342,9 @@ export function App() {
     if (!activeProjectId || !snapshot.nodes) return;
     setProjects(prev => prev.map(p => {
       if (p.id === activeProjectId) {
-        return { ...p, nodes: snapshot.nodes, edges: snapshot.edges };
+        const updated = { ...p, nodes: snapshot.nodes, edges: snapshot.edges };
+        syncProjectCloud(updated);
+        return updated;
       }
       return p;
     }));
@@ -330,16 +374,33 @@ export function App() {
       return [projectWithUser, ...prev];
     });
     setActiveProjectId(projectWithUser.id);
+    syncProjectCloud(projectWithUser);
   };
 
-  const handleLoginSuccess = (user: UserProfile) => {
+  const handleLoginSuccess = async (user: UserProfile) => {
     setUserProfile(user);
     setShowGitAuthModal(false);
+
+    // Auto pull cloud projects from MongoDB Atlas after login
+    const cloudProjs = await fetchUserProjectsCloud();
+    if (cloudProjs.length > 0) {
+      setProjects(prev => {
+        const merged = [...prev];
+        cloudProjs.forEach(cp => {
+          const idx = merged.findIndex(p => p.name === cp.name);
+          if (idx >= 0) merged[idx] = cp;
+          else merged.push(cp);
+        });
+        return merged;
+      });
+    }
+
     setShowRepoSuggestionsModal(true);
   };
 
   const handleLogoutFull = () => {
     setUserProfile(null);
+    clearStoredAuthToken();
     localStorage.removeItem(LOCAL_STORAGE_KEY_USER);
   };
 
