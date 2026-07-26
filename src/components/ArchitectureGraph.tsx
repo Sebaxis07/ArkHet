@@ -200,7 +200,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
     const maxY = Math.max(...memberNodes.map(n => {
       const isExpanded = expandedNodeIds.has(n.id) || layerView === 'code';
       const totalSub = n.subNodes?.length || 0;
-      const h = isExpanded ? Math.min(520, 220 + totalSub * 36) : 210;
+      const h = isExpanded ? Math.min(540, 240 + totalSub * 42) : 220;
       return n.y + h;
     })) + paddingBottom;
 
@@ -385,7 +385,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
             const totalSubnodes = node.subNodes?.length || 0;
             const liveUrl = node.deploymentUrl || node.domainUrl;
 
-            const cardHeight = isExpanded ? Math.min(520, 240 + totalSubnodes * 36) : 220;
+            const cardHeight = isExpanded ? Math.min(540, 240 + totalSubnodes * 42) : 220;
 
             return (
               <g
@@ -453,7 +453,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
                         <div className="my-1 pt-1.5 border-t border-neutral-800/80 font-mono text-[10px]">
                           <div 
                             onClick={e => toggleNodeExpansion(node.id, e)}
-                            className="flex items-center justify-between px-2.5 py-1 bg-black rounded border border-neutral-800 hover:border-neutral-600 transition-colors text-neutral-300 font-bold"
+                            className="flex items-center justify-between px-2.5 py-1 bg-black rounded border border-neutral-800 hover:border-neutral-600 transition-colors text-neutral-300 font-bold cursor-pointer"
                           >
                             <span className="flex items-center gap-1.5">
                               <Box className="w-3.5 h-3.5 text-white" />
@@ -461,6 +461,18 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
                             </span>
                             {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-white" /> : <ChevronRight className="w-3.5 h-3.5 text-neutral-500" />}
                           </div>
+
+                          {/* SUBNODES LIST OPENED WHEN EXPANDED */}
+                          {isExpanded && (
+                            <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
+                              {node.subNodes?.map(sn => (
+                                <div key={sn.id} className="p-1.5 bg-black rounded border border-neutral-800 flex items-center justify-between text-[10px] text-white font-mono">
+                                  <span className="font-bold truncate">• {sn.label}</span>
+                                  <span className="text-[9px] text-neutral-400">{sn.type}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -516,6 +528,33 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
                             <span className="truncate">🌐 {liveUrl}</span>
                             <ExternalLink className="w-3 h-3 text-white shrink-0 ml-1" />
                           </a>
+                        )}
+
+                        {totalSubnodes > 0 && (
+                          <div className="my-1 pt-1.5 border-t border-neutral-800/80 font-mono text-[10px]">
+                            <div 
+                              onClick={e => toggleNodeExpansion(node.id, e)}
+                              className="flex items-center justify-between px-2.5 py-1 bg-black rounded border border-neutral-800 hover:border-neutral-600 transition-colors text-neutral-300 font-bold cursor-pointer"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <Box className="w-3.5 h-3.5 text-white" />
+                                {totalSubnodes} SUBCOMPONENTES
+                              </span>
+                              {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-white" /> : <ChevronRight className="w-3.5 h-3.5 text-neutral-500" />}
+                            </div>
+
+                            {/* SUBNODES LIST OPENED WHEN EXPANDED IN PHYSICAL MODE */}
+                            {isExpanded && (
+                              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
+                                {node.subNodes?.map(sn => (
+                                  <div key={sn.id} className="p-1.5 bg-black rounded border border-neutral-800 flex items-center justify-between text-[10px] text-white font-mono">
+                                    <span className="font-bold truncate">• {sn.label}</span>
+                                    <span className="text-[9px] text-neutral-400">{sn.type}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
 
