@@ -28,7 +28,9 @@ import {
   Menu,
   X,
   SlidersHorizontal,
-  FolderTree
+  FolderTree,
+  ChevronRight,
+  Compass
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY_PROJECTS = 'project_architecture_os_projects_v9';
@@ -406,41 +408,91 @@ export function App() {
 
   return (
     <div className="w-screen h-screen flex flex-col bg-[#0A0A0A] text-neutral-100 overflow-hidden font-sans select-none">
-      {/* Top Responsive Navbar */}
-      <header className="h-14 bg-[#121212] border-b border-neutral-800 px-4 sm:px-6 flex items-center justify-between shrink-0 z-30 font-mono">
+      {/* REDESIGNED PREMUM NAVBAR HEADER */}
+      <header className="h-16 bg-[#0D0D0D]/90 backdrop-blur-md border-b border-neutral-800/80 px-4 sm:px-6 flex items-center justify-between shrink-0 z-30 font-mono shadow-2xl">
+        {/* Left Segment: Logo + Interactive Breadcrumb */}
         <div className="flex items-center gap-3">
           <div 
             onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); }}
-            className="flex items-center gap-2.5 cursor-pointer group"
+            className="flex items-center gap-3 cursor-pointer group"
           >
-            <img 
-              src="/logo.png" 
-              alt="Arkhet Logo" 
-              className="h-7 sm:h-8 w-auto object-contain rounded transition-transform group-hover:scale-105"
-            />
+            <div className="relative">
+              <img 
+                src="/logo.png" 
+                alt="Arkhet Logo" 
+                className="h-8 sm:h-9 w-auto object-contain rounded-md transition-transform group-hover:scale-105 border border-neutral-800"
+              />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-white rounded-full border-2 border-[#0D0D0D] animate-ping" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-white rounded-full border-2 border-[#0D0D0D]" />
+            </div>
+
             <div className="flex flex-col">
-              <span className="font-bold text-white tracking-widest text-xs sm:text-sm font-mono leading-none">ARKHET</span>
-              <span className="text-[8px] sm:text-[9px] text-neutral-400 font-mono tracking-tighter">ARCHITECTURE OS</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-white tracking-widest text-sm sm:text-base font-mono leading-none">ARKHET</span>
+                <span className="px-1.5 py-0.2 text-[8px] font-mono bg-neutral-900 text-neutral-400 border border-neutral-800 rounded font-bold">
+                  v2.0 OS
+                </span>
+              </div>
+              <span className="text-[9px] text-neutral-500 font-mono tracking-tighter">GRAFO VIVO DE ARQUITECTURA</span>
             </div>
           </div>
 
-          {activeProject && (
-            <div className="hidden sm:flex items-center gap-2 text-xs font-mono pl-4 border-l border-neutral-800">
-              <span className="text-neutral-600">/</span>
-              <span className="px-2 py-0.5 rounded bg-black text-white border border-neutral-800 font-bold uppercase truncate max-w-[140px] lg:max-w-[220px]">
-                {activeProject.name}
+          {/* Breadcrumb Pill */}
+          {activeProject ? (
+            <div className="hidden sm:flex items-center gap-2 font-mono text-xs pl-3 border-l border-neutral-800">
+              <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
+              <div className="flex items-center gap-2 bg-black px-3 py-1 rounded-full border border-neutral-800 text-white font-bold">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                <span className="truncate max-w-[140px] md:max-w-[220px] uppercase tracking-wide">
+                  {activeProject.name}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="hidden md:flex items-center gap-1.5 font-mono text-[11px] pl-3 border-l border-neutral-800 text-neutral-500">
+              <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
+              <span className="flex items-center gap-1 text-neutral-400 font-bold">
+                <Compass className="w-3.5 h-3.5 text-white" /> VISTA GLOBAL DE ECOSISTEMA
               </span>
             </div>
           )}
         </div>
 
-        {/* Global Toolbar (Desktop View) */}
-        <div className="hidden lg:flex items-center gap-2.5 text-xs">
-          {/* Active Background Scan Badge */}
+        {/* Center Segment: Navigation & Core Mode Switcher (Desktop) */}
+        <div className="hidden md:flex items-center bg-black p-1 rounded-lg border border-neutral-800/90 shadow-inner gap-1 text-xs">
+          <button
+            onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); }}
+            className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${
+              !activeProjectId
+                ? 'bg-white text-black shadow-md'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+            }`}
+          >
+            <Compass className="w-3.5 h-3.5" /> ECOSISTEMA MAPA
+          </button>
+
+          <button
+            onClick={() => setShowComparator(true)}
+            className="px-3 py-1.5 rounded-md font-bold transition-all text-neutral-400 hover:text-white hover:bg-neutral-900 flex items-center gap-1.5"
+          >
+            <GitBranch className="w-3.5 h-3.5" /> COMPARAR
+          </button>
+
+          <button
+            onClick={handleOpenLocalDirectoryTop}
+            className="px-3 py-1.5 rounded-md font-bold transition-all text-neutral-400 hover:text-white hover:bg-neutral-900 flex items-center gap-1.5"
+          >
+            <HardDrive className="w-3.5 h-3.5" /> CARPETA LOCAL
+          </button>
+        </div>
+
+        {/* Right Segment: Status, Actions & Profile */}
+        <div className="hidden lg:flex items-center gap-3 text-xs">
+          {/* Active Background Scan Progress Indicator */}
           {activeImportTask && activeImportTask.isMinimized && (
             <button
               onClick={() => setActiveImportTask(prev => prev ? { ...prev, isMinimized: false } : null)}
-              className="px-3 py-1.5 rounded bg-white text-black font-bold flex items-center gap-1.5 animate-pulse"
+              className="px-3 py-1.5 rounded-md bg-white text-black font-bold flex items-center gap-2 animate-pulse shadow-lg"
               title="Expandir progreso de escaneo"
             >
               <Sparkles className="w-3.5 h-3.5 animate-spin" />
@@ -452,66 +504,50 @@ export function App() {
           {userProfile && (
             <button
               onClick={() => setShowRepoSuggestionsModal(true)}
-              className="px-3 py-1.5 rounded bg-neutral-900 hover:bg-neutral-800 text-white font-bold border border-neutral-700 flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-md bg-[#171717] hover:bg-neutral-800 text-white font-bold border border-neutral-700 flex items-center gap-1.5 transition-colors"
             >
               <FolderGit2 className="w-3.5 h-3.5 text-white" />
-              REPOS DE @{userProfile.username}
+              REPOS @{userProfile.username}
             </button>
           )}
 
           {activeProject && (
-            <>
-              {/* Auto-Sync Live Watcher Toggle */}
+            <div className="flex items-center gap-2 border-l border-neutral-800 pl-3">
+              {/* Auto-Sync Live Watcher Button */}
               <button
                 onClick={() => setIsAutoSyncEnabled(!isAutoSyncEnabled)}
-                className={`px-3 py-1.5 rounded border font-bold flex items-center gap-1.5 transition-all ${
+                className={`p-2 rounded-md border font-bold flex items-center gap-1.5 transition-all ${
                   isAutoSyncEnabled
                     ? 'bg-neutral-900 text-white border-neutral-700'
                     : 'bg-black text-neutral-500 border-neutral-800'
                 }`}
-                title="Sincronización en Vivo Automática"
+                title={isAutoSyncEnabled ? 'Auto-Sync Activo en Vivo' : 'Auto-Sync Pausado'}
               >
-                <span className={`w-2 h-2 rounded-full ${isAutoSyncEnabled ? 'bg-white animate-pulse' : 'bg-neutral-600'}`} />
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncingLive ? 'animate-spin text-white' : 'text-neutral-400'}`} />
-                {isAutoSyncEnabled ? 'AUTO-SYNC ACTIVO' : 'AUTO-SYNC PAUSADO'}
               </button>
 
               <button
                 onClick={() => setShowSnapshotManager(true)}
-                className="px-3 py-1.5 rounded bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 transition-colors flex items-center gap-1.5 font-bold"
+                className="px-2.5 py-1.5 rounded-md bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 font-bold flex items-center gap-1.5 transition-colors"
+                title="Historial de Snapshots"
               >
                 <History className="w-3.5 h-3.5 text-neutral-400" />
-                SNAPSHOTS ({activeProject.snapshots?.length || 0})
+                <span className="hidden xl:inline">SNAPSHOTS</span> ({activeProject.snapshots?.length || 0})
               </button>
 
               <button
                 onClick={() => setShowExportModal(true)}
-                className="px-3 py-1.5 rounded bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 transition-colors flex items-center gap-1.5 font-bold"
+                className="px-2.5 py-1.5 rounded-md bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 font-bold flex items-center gap-1.5 transition-colors"
+                title="Exportar Mapa"
               >
                 <Download className="w-3.5 h-3.5 text-neutral-400" />
-                EXPORTAR
+                <span className="hidden xl:inline">EXPORTAR</span>
               </button>
-            </>
+            </div>
           )}
 
-          <button
-            onClick={() => setShowComparator(true)}
-            className="px-3 py-1.5 rounded bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 transition-colors flex items-center gap-1.5 font-bold"
-          >
-            <GitBranch className="w-3.5 h-3.5 text-neutral-400" />
-            COMPARAR
-          </button>
-
-          <button
-            onClick={handleOpenLocalDirectoryTop}
-            className="px-3 py-1.5 rounded bg-white hover:bg-neutral-200 text-black font-bold flex items-center gap-1.5"
-          >
-            <HardDrive className="w-3.5 h-3.5" />
-            CONECTAR CARPETA LOCAL (PC)
-          </button>
-
           {/* User Profile Widget */}
-          <div className="pl-2 border-l border-neutral-800">
+          <div className="pl-3 border-l border-neutral-800">
             <UserProfileWidget
               user={userProfile}
               onOpenGitAuth={() => setShowGitAuthModal(true)}
@@ -520,7 +556,7 @@ export function App() {
           </div>
         </div>
 
-        {/* Mobile Hamburger Controls */}
+        {/* Mobile Controls Toolbar */}
         <div className="flex lg:hidden items-center gap-2">
           {activeProject && (
             <button
@@ -622,7 +658,7 @@ export function App() {
           <>
             {/* Left Sidebar - Desktop & Responsive Mobile Drawer */}
             <div className={`
-              fixed lg:static inset-y-14 left-0 z-40 transition-transform duration-300 ease-in-out
+              fixed lg:static inset-y-16 left-0 z-40 transition-transform duration-300 ease-in-out
               ${isLeftSidebarOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
               <FolderTreeSidebar
@@ -648,7 +684,7 @@ export function App() {
 
             {/* Right Sidebar - Desktop & Responsive Mobile Drawer */}
             <div className={`
-              fixed lg:static inset-y-14 right-0 z-40 transition-transform duration-300 ease-in-out
+              fixed lg:static inset-y-16 right-0 z-40 transition-transform duration-300 ease-in-out
               ${isRightSidebarOpenMobile ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
             `}>
               <TechSpecSidebar
