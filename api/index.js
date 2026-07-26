@@ -154,4 +154,19 @@ app.post('/api/projects', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/admin/clean-db - Clean database accounts
+app.post('/api/admin/clean-db', async (req, res) => {
+  await connectToDatabase();
+  try {
+    const deletedUsers = await User.deleteMany({});
+    const deletedProjects = await Project.deleteMany({});
+    res.json({
+      success: true,
+      message: `Base de datos limpiada. ${deletedUsers.deletedCount} usuarios y ${deletedProjects.deletedCount} proyectos eliminados.`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default app;

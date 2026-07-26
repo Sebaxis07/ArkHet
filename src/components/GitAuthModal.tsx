@@ -5,10 +5,9 @@ import {
   X, 
   User, 
   Lock, 
-  FolderGit2, 
   Mail, 
   ArrowRight,
-  Cloud
+  ShieldCheck
 } from 'lucide-react';
 
 interface GitAuthModalProps {
@@ -24,7 +23,6 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [gitToken, setGitToken] = useState('');
   const [errorText, setErrorText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -35,35 +33,34 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
 
     try {
       if (mode === 'register') {
+        if (!email.includes('@')) {
+          setErrorText('Ingresa un correo electrónico válido (debe coincidir con tu cuenta de GitHub).');
+          setIsLoading(false);
+          return;
+        }
+
         const { user } = await registerUserCloud(username, email, password);
         onLoginSuccess({
           ...user,
           username: username || 'Sebaxis07',
           email,
-          avatarUrl: `https://github.com/${username || 'Sebaxis07'}.png`,
-          token: gitToken || undefined
+          avatarUrl: `https://github.com/${username || 'Sebaxis07'}.png`
         });
       } else {
         const { user } = await loginUserCloud(username || email, password);
         onLoginSuccess({
           ...user,
           username: user.username || username || 'Sebaxis07',
-          token: gitToken || undefined
+          email: user.email || email
         });
       }
     } catch (err: any) {
-      // Fallback local account creation if backend server is not connected yet
+      // Local fallback profile
       const fallbackUser: UserProfile = {
         id: `usr-${Date.now()}`,
         username: username || 'Sebaxis07',
-        email: email || `${username || 'sebaxis'}@arkhet.os`,
-        avatarUrl: `https://github.com/${username || 'Sebaxis07'}.png`,
-        token: gitToken || undefined,
-        gitLinkedAccount: gitToken ? {
-          username: username || 'Sebaxis07',
-          accessToken: gitToken,
-          isLinked: true
-        } : undefined
+        email: email || `${username || 'sebaxis'}@gmail.com`,
+        avatarUrl: `https://github.com/${username || 'Sebaxis07'}.png`
       };
       onLoginSuccess(fallbackUser);
     } finally {
@@ -73,17 +70,17 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 font-mono select-none">
-      <div className="bg-[#121212] border border-neutral-800 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+      <div className="bg-[#121212] border border-neutral-800 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Arkhet Logo" className="h-7 w-auto object-contain rounded" />
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">
                 {mode === 'login' ? 'INICIAR SESIÓN' : 'CREAR CUENTA ARKHET'}
               </h2>
               <span className="text-[10px] text-neutral-400 block font-sans">
-                Nube MongoDB Atlas & Integración Git
+                Sincronización Nube MongoDB Atlas
               </span>
             </div>
           </div>
@@ -92,14 +89,19 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
           </button>
         </div>
 
-        {/* Cloud Badge */}
-        <div className="p-3 bg-black rounded border border-neutral-800 flex items-center gap-2 text-xs text-neutral-300">
-          <Cloud className="w-4 h-4 text-white shrink-0" />
-          <span>Sincroniza tus proyectos entre PC y Celular mediante tu cuenta de usuario.</span>
+        {/* Security Ownership Badge */}
+        <div className="p-3 bg-black rounded border border-neutral-800 space-y-1 text-xs text-neutral-300">
+          <div className="flex items-center gap-1.5 font-bold text-white text-[11px]">
+            <ShieldCheck className="w-4 h-4 text-white shrink-0" />
+            <span>VERIFICACIÓN DE PROPIEDAD DE PROYECTOS</span>
+          </div>
+          <p className="text-[11px] text-neutral-400 font-sans leading-relaxed">
+            Tu correo de Arkhet debe coincidir con tu correo de GitHub para validar la propiedad real de tus repositorios y proteger tus proyectos.
+          </p>
         </div>
 
         {errorText && (
-          <div className="p-2.5 bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs rounded">
+          <div className="p-2.5 bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs rounded font-sans">
             {errorText}
           </div>
         )}
@@ -107,7 +109,7 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="text-[10px] text-neutral-400 font-bold uppercase block mb-1">
-              {mode === 'login' ? 'USUARIO O CORREO' : 'NOMBRE DE USUARIO DE GIT / ARKHET'}
+              NOMBRE DE USUARIO
             </label>
             <div className="relative">
               <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
@@ -122,15 +124,32 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
             </div>
           </div>
 
-          {mode === 'register' && (
+          {mode === 'register' ? (
             <div>
               <label className="text-[10px] text-neutral-400 font-bold uppercase block mb-1">
-                CORREO ELECTRÓNICO
+                CORREO ELECTRÓNICO (Debe coincidir con tu GitHub)
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
                 <input
                   type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="tu_correo_de_github@ejemplo.com"
+                  className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white"
+                  required
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-[10px] text-neutral-400 font-bold uppercase block mb-1">
+                CORREO ELECTRÓNICO O USUARIO
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+                <input
+                  type="text"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="usuario@ejemplo.com"
@@ -158,28 +177,12 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-1">
-            <label className="text-[10px] text-neutral-400 font-bold uppercase block mb-1">
-              TOKEN OPCIONAL DE GITHUB (Personal Access Token)
-            </label>
-            <div className="relative">
-              <FolderGit2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-              <input
-                type="password"
-                value={gitToken}
-                onChange={e => setGitToken(e.target.value)}
-                placeholder="ghp_xxxxxxxxxxxx (Opcional para repos privados)"
-                className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white font-mono"
-              />
-            </div>
-          </div>
-
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 bg-white hover:bg-neutral-200 text-black font-bold rounded text-xs transition-colors flex items-center justify-center gap-2 mt-2"
+            className="w-full py-2.5 bg-white hover:bg-neutral-200 text-black font-bold rounded text-xs transition-colors flex items-center justify-center gap-2 mt-3"
           >
-            {isLoading ? 'CONECTANDO...' : mode === 'login' ? 'ENTRAR Y SINCRONIZAR' : 'CREAR CUENTA Y CONECTAR'}
+            {isLoading ? 'CONECTANDO...' : mode === 'login' ? 'ENTRAR Y SINCRONIZAR' : 'CREAR CUENTA EN ARKHET'}
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

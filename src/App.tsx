@@ -334,15 +334,7 @@ export function App() {
 
   const handleLoginSuccess = (user: UserProfile) => {
     setUserProfile(user);
-    setProjects(prev => prev.map(p => ({
-      ...p,
-      userId: user.id,
-      gitInfo: {
-        ...p.gitInfo,
-        owner: user.username,
-        isLinkedToUser: true
-      }
-    })));
+    setShowGitAuthModal(false);
     setShowRepoSuggestionsModal(true);
   };
 
@@ -642,7 +634,6 @@ export function App() {
         <GitRepoSuggestionsModal
           user={userProfile}
           onImportStart={handleStartBackgroundImport}
-          onOpenGitAuth={() => setShowGitAuthModal(true)}
           onClose={() => setShowRepoSuggestionsModal(false)}
         />
       )}

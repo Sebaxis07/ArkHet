@@ -12,13 +12,13 @@ import {
   Key,
   FolderGit2,
   User,
-  RefreshCw
+  RefreshCw,
+  ShieldCheck
 } from 'lucide-react';
 
 interface GitRepoSuggestionsModalProps {
   user: UserProfile;
   onImportStart: (repoName: string, promise: Promise<Project>) => void;
-  onOpenGitAuth?: () => void;
   onClose: () => void;
 }
 
@@ -27,9 +27,8 @@ export const GitRepoSuggestionsModal: React.FC<GitRepoSuggestionsModalProps> = (
   onImportStart,
   onClose
 }) => {
-  const [gitUsernameInput, setGitUsernameInput] = useState<string>(
-    user.gitLinkedAccount?.username || (user.username && user.username !== 'Sebaxis' ? user.username : 'Sebaxis07')
-  );
+  const defaultGitUser = user.username || user.gitLinkedAccount?.username || 'Sebaxis07';
+  const [gitUsernameInput, setGitUsernameInput] = useState<string>(defaultGitUser);
   const [repos, setRepos] = useState<GithubRepoItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,16 +79,30 @@ export const GitRepoSuggestionsModal: React.FC<GitRepoSuggestionsModalProps> = (
             />
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                REPOSITORIOS GITHUB REALES DE @{gitUsernameInput}
+                REPOSITORIOS DE @{gitUsernameInput}
               </h2>
               <span className="text-[10px] text-neutral-400 font-sans block">
-                Selecciona cualquier repositorio para escanear su código y generar su mapa de arquitectura.
+                Proyectos reales verificados para la cuenta {user.email || '@' + user.username}
               </span>
             </div>
           </div>
           <button onClick={onClose} className="text-neutral-500 hover:text-white p-1">
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Ownership Verification Banner */}
+        <div className="p-2.5 bg-black border border-neutral-800 rounded flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 text-neutral-300 text-[11px]">
+            <ShieldCheck className="w-4 h-4 text-white shrink-0" />
+            <span>
+              Sesión vinculada a <strong>{user.email || '@' + user.username}</strong>
+            </span>
+          </div>
+
+          <span className="px-2 py-0.5 rounded bg-neutral-900 text-white font-bold text-[10px] border border-neutral-800">
+            PROPIETARIO AUTENTICADO
+          </span>
         </div>
 
         {/* Change GitHub Username Bar */}
@@ -124,7 +137,7 @@ export const GitRepoSuggestionsModal: React.FC<GitRepoSuggestionsModalProps> = (
           <div className="flex items-center gap-2 text-neutral-400 text-[11px]">
             <Key className="w-3.5 h-3.5 text-neutral-300 shrink-0" />
             <span>
-              {customToken || user.token ? '🟢 Token Personal Activo (Repos Privados Accedidos)' : '⚪ Mostrando repositorios públicos de @' + gitUsernameInput}
+              {customToken || user.token ? '🟢 Token Personal Activo' : '⚪ Mostrando repositorios públicos de @' + gitUsernameInput}
             </span>
           </div>
 
