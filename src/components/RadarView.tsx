@@ -63,6 +63,7 @@ export const RadarView: React.FC<RadarViewProps> = ({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [touchDistanceStart, setTouchDistanceStart] = useState<number | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -115,6 +116,14 @@ export const RadarView: React.FC<RadarViewProps> = ({
     }
   };
 
+  // Mouse Wheel Zoom Handler
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const zoomDelta = e.deltaY < 0 ? 0.08 : -0.08;
+    setZoom(z => Math.min(2.5, Math.max(0.3, parseFloat((z + zoomDelta).toFixed(2)))));
+  };
+
+  // Desktop Mouse Drag
   const handleMouseDownCanvas = (e: React.MouseEvent) => {
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
       setIsPanning(true);
@@ -130,6 +139,40 @@ export const RadarView: React.FC<RadarViewProps> = ({
 
   const handleMouseUp = () => {
     setIsPanning(false);
+  };
+
+  // Mobile Touch Panning & Pinch-to-Zoom
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsPanning(true);
+      setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+    } else if (e.touches.length === 2) {
+      setIsPanning(false);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      setTouchDistanceStart(dist);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && isPanning) {
+      setPan({ x: e.touches[0].clientX - dragStart.x, y: e.touches[0].clientY - dragStart.y });
+    } else if (e.touches.length === 2 && touchDistanceStart !== null) {
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = currentDist / touchDistanceStart;
+      setZoom(z => Math.min(2.5, Math.max(0.3, parseFloat((z * (factor > 1 ? 1.03 : 0.97)).toFixed(2)))));
+      setTouchDistanceStart(currentDist);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsPanning(false);
+    setTouchDistanceStart(null);
   };
 
   // Compute Responsive Radial Mind Map layout
@@ -156,6 +199,8 @@ export const RadarView: React.FC<RadarViewProps> = ({
       className="flex-1 flex flex-col h-full bg-[#0A0A0A] text-neutral-200 overflow-hidden relative font-sans select-none"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Background Micro Grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1A1A1A_1px,transparent_1px),linear-gradient(to_bottom,#1A1A1A_1px,transparent_1px)] bg-[size:32px_32px] opacity-40 pointer-events-none" />
@@ -285,9 +330,9 @@ export const RadarView: React.FC<RadarViewProps> = ({
           {/* Floating Canvas Controls */}
           <div className="absolute top-3 right-3 z-30 flex items-center gap-1 bg-[#141414] p-1 rounded border border-neutral-800 shadow-2xl">
             <button
-              onClick={() => setZoom(z => Math.min(2, z + 0.15))}
+              onClick={() => setZoom(z => Math.min(2.5, z + 0.15))}
               className="p-1 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition-colors"
-              title="Acercar"
+              title="Acercar (o usa la rueda del ratón)"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
@@ -295,7 +340,7 @@ export const RadarView: React.FC<RadarViewProps> = ({
             <button
               onClick={() => setZoom(z => Math.max(0.3, z - 0.15))}
               className="p-1 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition-colors"
-              title="Alejar"
+              title="Alejar (o usa la rueda del ratón)"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
@@ -310,8 +355,10 @@ export const RadarView: React.FC<RadarViewProps> = ({
 
           <svg
             ref={svgRef}
-            className="w-full h-full cursor-grab active:cursor-grabbing"
+            className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
             onMouseDown={handleMouseDownCanvas}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
           >
             <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
               {/* Spline Lines connecting Center to Project Nodes */}

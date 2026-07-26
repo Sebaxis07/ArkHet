@@ -43,6 +43,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
+  const [touchDistanceStart, setTouchDistanceStart] = useState<number | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -66,6 +67,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
     setZoom(z => Math.min(2.5, Math.max(0.35, parseFloat((z + zoomDelta).toFixed(2)))));
   };
 
+  // Desktop Mouse Events
   const handleMouseDownCanvas = (e: React.MouseEvent) => {
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
       setIsPanning(true);
@@ -96,6 +98,40 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
     setDraggingNodeId(null);
   };
 
+  // Mobile Touch Panning & Pinch-to-Zoom
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsPanning(true);
+      setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+    } else if (e.touches.length === 2) {
+      setIsPanning(false);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      setTouchDistanceStart(dist);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && isPanning) {
+      setPan({ x: e.touches[0].clientX - dragStart.x, y: e.touches[0].clientY - dragStart.y });
+    } else if (e.touches.length === 2 && touchDistanceStart !== null) {
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = currentDist / touchDistanceStart;
+      setZoom(z => Math.min(2.5, Math.max(0.35, parseFloat((z * (factor > 1 ? 1.03 : 0.97)).toFixed(2)))));
+      setTouchDistanceStart(currentDist);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsPanning(false);
+    setTouchDistanceStart(null);
+  };
+
   const toggleNodeExpansion = (nodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedNodeIds(prev => {
@@ -123,7 +159,6 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
 
   // Compute Dynamic Adaptive Bounding Boxes for Clusters based on member nodes
   const dynamicClusters = clusters.map(cluster => {
-    // Find member nodes belonging to this cluster
     const memberNodes = nodes.filter(n => 
       n.clusterId === cluster.id || 
       (cluster.layer === 'presentation' && n.category === 'frontend') ||
@@ -165,6 +200,8 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
       className="flex-1 h-full bg-[#0A0A0A] relative overflow-hidden select-none font-sans"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Background Micro Grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1F1F1F_1px,transparent_1px),linear-gradient(to_bottom,#1F1F1F_1px,transparent_1px)] bg-[size:24px_24px] opacity-30 pointer-events-none" />
@@ -174,7 +211,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
         <button
           onClick={() => setZoom(z => Math.min(2.5, z + 0.15))}
           className="p-1.5 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition-colors"
-          title="Acercar (o usa la rueda del ratón)"
+          title="Acercar (o usa la rueda del ratón / gesto pellizcar)"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
@@ -182,7 +219,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
         <button
           onClick={() => setZoom(z => Math.max(0.35, z - 0.15))}
           className="p-1.5 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition-colors"
-          title="Alejar (o usa la rueda del ratón)"
+          title="Alejar (o usa la rueda del ratón / gesto pellizcar)"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
@@ -203,12 +240,13 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
         </button>
       </div>
 
-      {/* Main Interactive Canvas SVG with Wheel Zoom */}
+      {/* Main Interactive Canvas SVG with Wheel Zoom and Touch Gestures */}
       <svg
         ref={svgRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
+        className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
         onMouseDown={handleMouseDownCanvas}
         onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
       >
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
           {/* Dynamic Adaptive Cluster Layer Bounding Containers */}
