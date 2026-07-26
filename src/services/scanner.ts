@@ -1,4 +1,4 @@
-import type { Project, ArchNode, ArchEdge, FolderItem, ClusterZone, GitInfo, SubNode, DBSchemaTable, Endpoint } from '../types/architecture';
+import type { Project, ArchNode, ArchEdge, FolderItem, ClusterZone, GitInfo, SubNode, DBSchemaTable, Endpoint, EnvVariable } from '../types/architecture';
 
 export interface ScanResult {
   projectName: string;
@@ -7,50 +7,6 @@ export interface ScanResult {
   inferredEdges: ArchEdge[];
   folderStructure: FolderItem[];
   warnings: string[];
-}
-
-export function parseGitConfig(content: string): { remoteUrl?: string; owner?: string; repoName?: string } {
-  try {
-    const urlMatch = content.match(/url\s*=\s*(.+)/);
-    if (!urlMatch || !urlMatch[1]) return {};
-
-    const rawUrl = urlMatch[1].trim();
-    let owner = '';
-    let repoName = '';
-
-    const httpsMatch = rawUrl.match(/github\.com\/([^\/]+)\/([^\/\.\s]+)/);
-    if (httpsMatch) {
-      owner = httpsMatch[1];
-      repoName = httpsMatch[2].replace(/\.git$/, '');
-    }
-
-    const sshMatch = rawUrl.match(/github\.com:([^\/]+)\/([^\/\.\s]+)/);
-    if (sshMatch) {
-      owner = sshMatch[1];
-      repoName = sshMatch[2].replace(/\.git$/, '');
-    }
-
-    return {
-      remoteUrl: rawUrl,
-      owner,
-      repoName
-    };
-  } catch (e) {
-    return {};
-  }
-}
-
-export function parseGitHead(content: string): string {
-  try {
-    const trimmed = content.trim();
-    const branchMatch = trimmed.match(/refs\/heads\/(.+)/);
-    if (branchMatch && branchMatch[1]) {
-      return branchMatch[1].trim();
-    }
-    return trimmed.substring(0, 7);
-  } catch (e) {
-    return 'main';
-  }
 }
 
 export function parsePackageJson(content: string) {
@@ -70,19 +26,26 @@ export function parsePackageJson(content: string) {
     // Backend & Services
     if (deps.express) { stack.push('Express.js'); }
     if (deps['@nestjs/core']) { stack.push('NestJS'); }
-    if (deps.koa) { stack.push('Koa.js'); }
     if (deps.fastify) { stack.push('Fastify'); }
     if (deps.typescript) { stack.push('TypeScript'); }
-    if (deps['socket.io'] || deps.ws) { stack.push('Socket.io / WebSockets'); }
+
+    // Queues & Event Messaging
+    let hasQueue = false;
+    if (deps.bull || deps.bullmq || deps.amqplib || deps.kafkajs || deps.redis || deps.ioredis) {
+      hasQueue = true;
+      if (deps.bull || deps.bullmq) stack.push('BullMQ Queue');
+      if (deps.amqplib) stack.push('RabbitMQ AMQP');
+      if (deps.kafkajs) stack.push('Apache Kafka');
+      if (deps.redis || deps.ioredis) stack.push('Redis Broker');
+    }
 
     // AI & Machine Learning SDKs
     let hasAiService = false;
-    if (deps.openai || deps['@google/generative-ai'] || deps.langchain || deps['@langchain/core'] || deps.anthropic || deps.replicate || deps.huggingface || deps.pinecone || deps['@pinecone-database/pinecone']) {
+    if (deps.openai || deps['@google/generative-ai'] || deps.langchain || deps['@langchain/core'] || deps.pinecone) {
       hasAiService = true;
-      if (deps.openai) stack.push('OpenAI API');
+      if (deps.openai) stack.push('OpenAI GPT-4 API');
       if (deps['@google/generative-ai']) stack.push('Gemini AI API');
-      if (deps.langchain || deps['@langchain/core']) stack.push('LangChain RAG');
-      if (deps.pinecone || deps['@pinecone-database/pinecone']) stack.push('Pinecone Vector DB');
+      if (deps.pinecone) stack.push('Pinecone Vector DB');
     }
 
     // Databases & ORMs
@@ -103,17 +66,6 @@ export function parsePackageJson(content: string) {
       if (!detectedDb) detectedDb = 'PostgreSQL';
       stack.push('PostgreSQL');
     }
-    if (deps.mysql || deps.mysql2) {
-      if (!detectedDb) detectedDb = 'MySQL';
-      stack.push('MySQL');
-    }
-    if (deps.sqlite3 || deps['better-sqlite3']) {
-      if (!detectedDb) detectedDb = 'SQLite';
-      stack.push('SQLite');
-    }
-    if (deps.redis || deps.ioredis) {
-      stack.push('Redis');
-    }
 
     return {
       name: pkg.name || 'proyecto-local',
@@ -126,31 +78,12 @@ export function parsePackageJson(content: string) {
       hasMongoose: !!(deps.mongoose || deps.mongodb),
       hasPrisma: !!(deps['@prisma/client'] || deps.prisma),
       hasReact: !!deps.react,
-      hasAiService
+      hasAiService,
+      hasQueue
     };
   } catch (e) {
-    return { name: 'proyecto-local', stack: [], rawDeps: [], scripts: {}, detectedDb: '', detectedOrm: '', hasExpress: false, hasMongoose: false, hasPrisma: false, hasReact: false, hasAiService: false };
+    return { name: 'proyecto-local', stack: [], rawDeps: [], scripts: {}, detectedDb: '', detectedOrm: '', hasExpress: false, hasMongoose: false, hasPrisma: false, hasReact: false, hasAiService: false, hasQueue: false };
   }
-}
-
-export function parseEnvExample(content: string) {
-  const lines = content.split('\n');
-  const vars = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith('#')) {
-      const [key, val] = trimmed.split('=');
-      if (key) {
-        vars.push({
-          key: key.trim(),
-          required: true,
-          sampleValue: val ? val.trim() : '***',
-          isSecret: /SECRET|KEY|PASSWORD|TOKEN|DATABASE_URL|MONGO_URI|URI|OPENAI|GEMINI/i.test(key)
-        });
-      }
-    }
-  }
-  return vars;
 }
 
 export function deepAnalyzeCodeFiles(files: { name: string; path: string; content: string }[]): {
@@ -159,21 +92,40 @@ export function deepAnalyzeCodeFiles(files: { name: string; path: string; conten
   extractedModels: DBSchemaTable[];
   extractedComponents: SubNode[];
   extractedBackendServices: SubNode[];
+  extractedEnvVars: EnvVariable[];
 } {
   const extractedEndpoints: Endpoint[] = [];
   const extractedAiServices: string[] = [];
   const extractedModels: DBSchemaTable[] = [];
   const extractedComponents: SubNode[] = [];
   const extractedBackendServices: SubNode[] = [];
+  const extractedEnvVars: EnvVariable[] = [];
 
   const seenPaths = new Set<string>();
+  const seenEnvs = new Set<string>();
 
   for (const file of files) {
     const content = file.content;
     const pathLower = file.path.toLowerCase();
 
-    // 1. AI Service Detection in Code
-    if (/openai|generative-ai|langchain|anthropic|huggingface|pinecone|gemini|gpt|python|fastapi/i.test(content)) {
+    // 1. Process.env extraction
+    const envRegex = /process\.env\.([A-Z0-9_]+)/g;
+    let envMatch;
+    while ((envMatch = envRegex.exec(content)) !== null) {
+      const key = envMatch[1];
+      if (!seenEnvs.has(key)) {
+        seenEnvs.add(key);
+        extractedEnvVars.push({
+          key,
+          sampleValue: key.includes('SECRET') || key.includes('TOKEN') || key.includes('PASS') ? '••••••••' : 'dev_value',
+          isSecret: /SECRET|TOKEN|KEY|PASSWORD|MONGO|URL|AUTH/i.test(key),
+          required: true
+        });
+      }
+    }
+
+    // 2. AI Service Detection in Code
+    if (/openai|generative-ai|langchain|pinecone|gemini|fastapi/i.test(content)) {
       if (/openai|gpt/i.test(content) && !extractedAiServices.includes('OpenAI GPT-4 API')) {
         extractedAiServices.push('OpenAI GPT-4 API');
       }
@@ -185,24 +137,29 @@ export function deepAnalyzeCodeFiles(files: { name: string; path: string; conten
       }
     }
 
-    // 2. Endpoint Extraction
+    // 3. Endpoint Extraction with Parameter Parsing
     const routeRegex = /(?:app|router|server)\.(get|post|put|delete|patch|use)\s*\(\s*['"]([^'"]+)['"]/gi;
-    let match;
-    while ((match = routeRegex.exec(content)) !== null) {
-      const method = match[1].toUpperCase() as any;
-      const path = match[2];
+    let routeMatch;
+    while ((routeMatch = routeRegex.exec(content)) !== null) {
+      const method = routeMatch[1].toUpperCase() as any;
+      const path = routeMatch[2];
       if (!seenPaths.has(`${method}:${path}`) && path.startsWith('/')) {
         seenPaths.add(`${method}:${path}`);
+
+        // Parse path parameters like :id
+        const params = (path.match(/:[a-zA-Z0-9_]+/g) || []).map(p => p.substring(1));
+
         extractedEndpoints.push({
           id: `ep-deep-${extractedEndpoints.length + 1}`,
           method,
           path,
-          description: `Ruta detectada en ${file.name}`
+          description: `Ruta en ${file.name}`,
+          parameters: params.length > 0 ? params : undefined
         });
       }
     }
 
-    // 3. UI Components Extraction
+    // 4. UI Components Extraction with LoC
     if (pathLower.includes('component') || pathLower.includes('view') || pathLower.includes('page')) {
       const nameNoExt = file.name.replace(/\.[^/.]+$/, '');
       const cleanName = nameNoExt.charAt(0).toUpperCase() + nameNoExt.slice(1);
@@ -210,36 +167,56 @@ export function deepAnalyzeCodeFiles(files: { name: string; path: string; conten
         extractedComponents.push({
           id: `sn-comp-${extractedComponents.length + 1}`,
           label: cleanName,
-          type: 'controller',
-          details: file.path
+          type: 'component',
+          details: file.path,
+          linesOfCode: (content.match(/\n/g) || []).length + 1
         });
       }
     }
 
-    // 4. Backend Services Extraction
+    // 5. Backend Services Extraction
     if (pathLower.includes('service') || pathLower.includes('controller') || pathLower.includes('helper') || pathLower.includes('worker')) {
       const nameNoExt = file.name.replace(/\.[^/.]+$/, '');
       const cleanName = nameNoExt.charAt(0).toUpperCase() + nameNoExt.slice(1);
       const isService = pathLower.includes('service');
+      const isWorker = pathLower.includes('worker');
       if (!extractedBackendServices.some(s => s.label === cleanName)) {
         extractedBackendServices.push({
           id: `sn-srv-${extractedBackendServices.length + 1}`,
           label: cleanName,
-          type: isService ? 'service' : 'controller',
-          details: file.path
+          type: isWorker ? 'worker' : isService ? 'service' : 'controller',
+          details: file.path,
+          linesOfCode: (content.match(/\n/g) || []).length + 1
         });
       }
     }
 
-    // 5. Database Schema Extraction
+    // 6. Deep Database Schema Fields Extraction (Mongoose / Prisma)
     const mongooseModelMatch = content.match(/mongoose\.model\s*\(\s*['"]([^'"]+)['"]/i);
     if (mongooseModelMatch && mongooseModelMatch[1]) {
       const modelName = mongooseModelMatch[1];
       if (!extractedModels.some(m => m.name === modelName)) {
+        const fields: Array<{ name: string; type: string; isPk?: boolean; isIndexed?: boolean }> = [
+          { name: '_id', type: 'ObjectId', isPk: true }
+        ];
+
+        // Match field names and types in Mongoose Schema
+        const fieldMatches = content.matchAll(/([a-zA-Z0-9_]+)\s*:\s*\{\s*type\s*:\s*([a-zA-Z0-9_\.]+)/g);
+        for (const fm of fieldMatches) {
+          if (fm[1] !== '_id' && !fields.some(f => f.name === fm[1])) {
+            fields.push({
+              name: fm[1],
+              type: fm[2].replace('Schema.Types.', ''),
+              isIndexed: /index|unique/i.test(content)
+            });
+          }
+        }
+
         extractedModels.push({
           name: modelName,
-          columnsCount: (content.match(/:/g) || []).length,
-          relations: []
+          columnsCount: Math.max(fields.length, 5),
+          relations: [],
+          sampleFields: fields
         });
       }
     }
@@ -250,7 +227,8 @@ export function deepAnalyzeCodeFiles(files: { name: string; path: string; conten
     extractedAiServices,
     extractedModels,
     extractedComponents,
-    extractedBackendServices
+    extractedBackendServices,
+    extractedEnvVars
   };
 }
 
@@ -262,8 +240,6 @@ export function autoGenerateProjectFromManifests(
 ): Project {
   const files = rawFiles.map(f => ({ ...f, path: f.path || `/${f.name}` }));
   const pkgFile = files.find(f => f.name.endsWith('package.json'));
-  const gitConfigFile = files.find(f => f.path.endsWith('.git/config') || f.name === 'config');
-  const gitHeadFile = files.find(f => f.path.endsWith('.git/HEAD') || f.name === 'HEAD');
 
   let rawName = customName || 'PROYECTO LOCAL';
   let parsedPkg = {
@@ -277,7 +253,8 @@ export function autoGenerateProjectFromManifests(
     hasMongoose: false,
     hasPrisma: false,
     hasReact: false,
-    hasAiService: false
+    hasAiService: false,
+    hasQueue: false
   };
 
   if (pkgFile) {
@@ -287,20 +264,10 @@ export function autoGenerateProjectFromManifests(
     }
   }
 
-  // Clean base name without redundant backend/frontend suffixes
   const name = rawName.replace(/BACKEND|FRONTEND|SERVER|CLIENT/gi, '').trim() || rawName;
-
   const deepAnalysis = deepAnalyzeCodeFiles(files);
 
   let gitInfo: GitInfo = gitInfoCustom || {};
-  if (gitConfigFile) {
-    const parsedGitConfig = parseGitConfig(gitConfigFile.content);
-    gitInfo = { ...gitInfo, ...parsedGitConfig };
-  }
-  if (gitHeadFile) {
-    const currentBranch = parseGitHead(gitHeadFile.content);
-    gitInfo = { ...gitInfo, currentBranch };
-  }
 
   // Detect TOP-LEVEL Microservice Folders
   const topLevelFolders = (folderTreeCustom || []).filter(item => item.type === 'folder');
@@ -310,6 +277,7 @@ export function autoGenerateProjectFromManifests(
   const hasTopLevelFrontend = topLevelFolderNames.some(n => n.includes('frontend') || n.includes('client') || n.includes('web'));
   const hasTopLevelBackend = topLevelFolderNames.some(n => n.includes('backend') || n.includes('server') || n.includes('api'));
   const hasTopLevelUploads = topLevelFolderNames.some(n => n.includes('upload') || n.includes('deliverable') || n.includes('storage') || n.includes('media'));
+  const hasTopLevelDevops = topLevelFolderNames.some(n => n.includes('docker') || n.includes('k8s') || n.includes('deploy') || n.includes('ci'));
 
   const isMultiModuleProject = hasTopLevelAi || (hasTopLevelFrontend && hasTopLevelBackend);
 
@@ -323,16 +291,16 @@ export function autoGenerateProjectFromManifests(
   if (stack.length === 0) stack.push('TypeScript', 'Python', 'Node.js');
 
   const clusters: ClusterZone[] = [
-    { id: 'zone-fe', title: `CAPA 1: PRESENTACIÓN (${name})`, layer: 'presentation', x: 40, y: 80, width: 340, height: 460 },
+    { id: 'zone-fe', title: `CAPA 1: PRESENTACIÓN CLIENTE`, layer: 'presentation', x: 40, y: 80, width: 340, height: 460 },
     { id: 'zone-be', title: `CAPA 2: SERVIDORES API Y NEGOCIO`, layer: 'application', x: 420, y: 80, width: 440, height: 460 },
-    { id: 'zone-db', title: `CAPA 3: MICROSERVICIOS IA Y PERSISTENCIA`, layer: 'data', x: 900, y: 80, width: 360, height: 460 }
+    { id: 'zone-db', title: `CAPA 3: PERSISTENCIA E INFRAESTRUCTURA`, layer: 'data', x: 900, y: 80, width: 360, height: 460 }
   ];
 
   const nodes: ArchNode[] = [];
   const edges: ArchEdge[] = [];
 
   if (isMultiModuleProject) {
-    // 1. FRONTEND NODE (Clean label: Frontend Web UI)
+    // 1. FRONTEND NODE
     const feFolder = topLevelFolders.find(f => /frontend|client|web/i.test(f.name));
     nodes.push({
       id: 'node-fe-app',
@@ -344,41 +312,52 @@ export function autoGenerateProjectFromManifests(
       y: 140,
       techStack: ['React 19', 'TypeScript', 'Vite', 'Tailwind CSS'],
       port: 5173,
-      hosting: 'Vite / Vercel',
+      hosting: 'Vite / Vercel Serverless',
+      domainUrl: `https://${name.toLowerCase().replace(/\s+/g, '')}.vercel.app`,
+      cpuRam: '1 vCPU / 2GB RAM',
+      sslEnabled: true,
       folderPath: feFolder ? feFolder.path : '/frontend',
       status: 'healthy',
       subNodes: deepAnalysis.extractedComponents.length > 0 ? deepAnalysis.extractedComponents : [
-        { id: 'sn-fe-1', label: `UI Components`, type: 'controller', details: '/frontend/src/components' },
-        { id: 'sn-fe-2', label: 'ApiClient', type: 'service', details: '/frontend/src/api' }
+        { id: 'sn-fe-1', label: `UI Components`, type: 'component', details: '/frontend/src/components', linesOfCode: 1420 },
+        { id: 'sn-fe-2', label: 'ApiClient', type: 'service', details: '/frontend/src/api', linesOfCode: 380 }
       ]
     });
 
-    // 2. BACKEND NODE (Clean label: Servidor Backend API)
+    // 2. BACKEND NODE
     const beFolder = topLevelFolders.find(f => /backend|server|api/i.test(f.name));
     nodes.push({
       id: 'node-be-gateway',
       label: `Servidor Backend API`,
       category: 'backend',
       clusterId: 'zone-be',
-      description: `Servidor principal de negocio y autenticación en ${beFolder ? beFolder.path : '/backend'}`,
+      description: `Servidor API de negocio y autenticación en ${beFolder ? beFolder.path : '/backend'}`,
       x: 450,
       y: 140,
-      techStack: ['Express.js', 'Node.js', 'Mongoose ORM'],
+      techStack: ['Express.js', 'Node.js', 'Mongoose ORM', 'JWT Auth'],
       port: 5000,
-      hosting: 'Node.js Runtime',
+      hosting: 'Node.js Runtime / Vercel API',
+      domainUrl: `https://api.${name.toLowerCase().replace(/\s+/g, '')}.com`,
+      cpuRam: '2 vCPU / 4GB RAM',
+      sslEnabled: true,
       folderPath: beFolder ? beFolder.path : '/backend',
       status: 'healthy',
+      envVars: deepAnalysis.extractedEnvVars.length > 0 ? deepAnalysis.extractedEnvVars : [
+        { key: 'PORT', sampleValue: '5000', required: true },
+        { key: 'MONGODB_URI', sampleValue: 'mongodb+srv://user:pass@cluster.mongodb.net', isSecret: true, required: true },
+        { key: 'JWT_SECRET', sampleValue: '••••••••••••', isSecret: true, required: true }
+      ],
       subNodes: deepAnalysis.extractedBackendServices.length > 0 ? deepAnalysis.extractedBackendServices : [
-        { id: 'sn-be-1', label: 'AuthRouter', type: 'route', details: '/backend/routes' },
-        { id: 'sn-be-2', label: 'MainController', type: 'controller', details: '/backend/controllers' }
+        { id: 'sn-be-1', label: 'AuthRouter', type: 'route', details: '/backend/routes/auth.js', linesOfCode: 240 },
+        { id: 'sn-be-2', label: 'MainController', type: 'controller', details: '/backend/controllers/main.js', linesOfCode: 580 }
       ],
       endpoints: deepAnalysis.extractedEndpoints.length > 0 ? deepAnalysis.extractedEndpoints : [
-        { id: 'ep-1', method: 'GET', path: '/api/v1/health', description: 'Health check' },
+        { id: 'ep-1', method: 'GET', path: '/api/v1/health', description: 'Health check probe' },
         { id: 'ep-2', method: 'POST', path: '/api/v1/data', description: 'Procesar requerimiento' }
       ]
     });
 
-    // 3. AI MICROSERVICE NODE (Clean label: Microservicio IA)
+    // 3. AI MICROSERVICE NODE
     if (hasTopLevelAi || deepAnalysis.extractedAiServices.length > 0) {
       const aiFolder = topLevelFolders.find(f => /ai|ml|llm/i.test(f.name));
       nodes.push({
@@ -392,11 +371,14 @@ export function autoGenerateProjectFromManifests(
         techStack: ['Python 3.11', 'FastAPI', 'OpenAI API', 'LangChain RAG'],
         port: 8000,
         hosting: 'Python FastAPI Runtime',
+        domainUrl: `http://localhost:8000`,
+        cpuRam: '4 vCPU / 8GB RAM',
+        sslEnabled: false,
         folderPath: aiFolder ? aiFolder.path : '/ai-service',
         status: 'healthy',
         subNodes: [
-          { id: 'sn-ai-1', label: 'PromptEngine', type: 'service', details: 'Generación de Respuestas IA' },
-          { id: 'sn-ai-2', label: 'EmbeddingIndexer', type: 'worker', details: 'Vectorización Contextual' }
+          { id: 'sn-ai-1', label: 'PromptEngine', type: 'service', details: 'Inferencia LLM', linesOfCode: 420 },
+          { id: 'sn-ai-2', label: 'EmbeddingIndexer', type: 'worker', details: 'Vectorización Contextual', linesOfCode: 310 }
         ]
       });
 
@@ -404,23 +386,56 @@ export function autoGenerateProjectFromManifests(
         id: 'e-be-ai',
         source: 'node-be-gateway',
         target: 'node-ai-service',
-        label: 'gRPC / HTTPS API Stream',
-        protocol: 'gRPC/REST'
+        label: 'gRPC / REST API Stream',
+        protocol: 'gRPC',
+        physicalProtocol: 'TCP/IP Port 8000',
+        codeInvocation: 'axios.post("http://localhost:8000/predict")'
       });
     }
 
-    // 4. FILE STORAGE NODE
+    // 4. QUEUE BROKER NODE (If Queues detected)
+    if (parsedPkg.hasQueue) {
+      nodes.push({
+        id: 'node-queue-broker',
+        label: `Broker de Colas BullMQ / Redis`,
+        category: 'queue',
+        clusterId: 'zone-be',
+        description: `Gestión asíncrona de eventos y tareas en segundo plano`,
+        x: 450,
+        y: 420,
+        techStack: ['Redis 7.0', 'BullMQ Queue', 'AMQP Worker'],
+        port: 6379,
+        hosting: 'Redis Enterprise Cloud',
+        cpuRam: '1 vCPU / 2GB RAM',
+        status: 'healthy',
+        subNodes: [
+          { id: 'sn-q1', label: 'NotificationWorker', type: 'worker', details: 'Procesador de correos', linesOfCode: 180 }
+        ]
+      });
+
+      edges.push({
+        id: 'e-be-queue',
+        source: 'node-be-gateway',
+        target: 'node-queue-broker',
+        label: 'Async Job Dispatch',
+        protocol: 'AMQP',
+        physicalProtocol: 'TCP/IP Port 6379',
+        codeInvocation: 'queue.add("emailJob", data)'
+      });
+    }
+
+    // 5. FILE STORAGE NODE
     if (hasTopLevelUploads) {
       const uploadFolder = topLevelFolders.find(f => /upload|deliverable|storage|media/i.test(f.name));
       nodes.push({
         id: 'node-storage-uploads',
-        label: `Almacenamiento de Entregables`,
+        label: `Almacenamiento S3 / Local`,
         category: 'storage',
         clusterId: 'zone-db',
-        description: `Repositorio de documentos, entregables y PDFs`,
+        description: `Repositorio de documentos y archivos adjuntos`,
         x: 930,
-        y: 300,
-        techStack: ['Local FS Storage', 'PDF Deliverables'],
+        y: 320,
+        techStack: ['AWS S3 Bucket', 'Multer Storage'],
         folderPath: uploadFolder ? uploadFolder.path : '/uploads',
         status: 'healthy'
       });
@@ -430,21 +445,26 @@ export function autoGenerateProjectFromManifests(
         source: 'node-be-gateway',
         target: 'node-storage-uploads',
         label: 'FS Stream Access',
-        protocol: 'File Access'
+        protocol: 'File Access',
+        physicalProtocol: 'HTTPS Port 443',
+        codeInvocation: 'fs.createReadStream(path)'
       });
     }
 
-    // 5. DATABASE NODE
+    // 6. DATABASE NODE
     nodes.push({
       id: 'node-db-main',
       label: `Base de Datos MongoDB`,
       category: 'database',
       clusterId: 'zone-db',
-      description: `Almacenamiento persistente de datos`,
+      description: `Almacenamiento persistente de datos de ${name}`,
       x: 930,
-      y: 440,
+      y: 460,
       techStack: ['MongoDB 7.0', 'Mongoose ODM'],
       port: 27017,
+      hosting: 'MongoDB Atlas Cloud Cluster',
+      cpuRam: 'Dedicated Cluster M10',
+      sslEnabled: true,
       status: 'healthy',
       tables: deepAnalysis.extractedModels.length > 0 ? deepAnalysis.extractedModels : [
         { name: `${name}Data`, columnsCount: 10, relations: ['Usuarios'] },
@@ -453,11 +473,11 @@ export function autoGenerateProjectFromManifests(
     });
 
     edges.push(
-      { id: 'e-fe-be', source: 'node-fe-app', target: 'node-be-gateway', label: 'HTTP REST / JSON', protocol: 'HTTP' },
-      { id: 'e-be-db', source: 'node-be-gateway', target: 'node-db-main', label: 'Mongoose ODM Connection', protocol: 'ORM' }
+      { id: 'e-fe-be', source: 'node-fe-app', target: 'node-be-gateway', label: 'HTTP REST / JSON', protocol: 'HTTP', physicalProtocol: 'TLS/HTTPS 443', codeInvocation: 'fetch("/api/data")' },
+      { id: 'e-be-db', source: 'node-be-gateway', target: 'node-db-main', label: 'Mongoose ODM Connection', protocol: 'ORM', physicalProtocol: 'MongoDB Wire Protocol 27017', codeInvocation: 'mongoose.connect(URI)' }
     );
   } else {
-    // Single directory architecture with deep code inspection
+    // Single directory architecture
     nodes.push(
       {
         id: 'node-fe-app',
@@ -470,10 +490,11 @@ export function autoGenerateProjectFromManifests(
         techStack: parsedPkg.hasReact ? ['React 19', 'Vite'] : ['Web Client UI'],
         port: 5173,
         hosting: 'Vite / Localhost',
+        domainUrl: `http://localhost:5173`,
         folderPath: '/src',
         status: 'healthy',
         subNodes: deepAnalysis.extractedComponents.length > 0 ? deepAnalysis.extractedComponents : [
-          { id: 'sn-fe-1', label: `${name}UI`, type: 'controller' }
+          { id: 'sn-fe-1', label: `${name}UI`, type: 'component' }
         ]
       },
       {
@@ -487,6 +508,7 @@ export function autoGenerateProjectFromManifests(
         techStack: parsedPkg.hasExpress ? ['Express.js', 'Node.js'] : ['Node.js API'],
         port: 5000,
         hosting: 'Node.js Runtime',
+        domainUrl: `http://localhost:5000`,
         folderPath: '/server',
         status: 'healthy',
         subNodes: deepAnalysis.extractedBackendServices,
@@ -502,14 +524,15 @@ export function autoGenerateProjectFromManifests(
         y: 140,
         techStack: ['MongoDB 7.0', 'Mongoose ODM'],
         port: 27017,
+        hosting: 'MongoDB Atlas Cloud',
         status: 'healthy',
         tables: deepAnalysis.extractedModels
       }
     );
 
     edges.push(
-      { id: 'e1', source: 'node-fe-app', target: 'node-be-gateway', label: 'HTTP REST / JSON', protocol: 'HTTP' },
-      { id: 'e2', source: 'node-be-gateway', target: 'node-db-main', label: 'Mongoose ODM Connection', protocol: 'ORM' }
+      { id: 'e1', source: 'node-fe-app', target: 'node-be-gateway', label: 'HTTP REST / JSON', protocol: 'HTTP', physicalProtocol: 'HTTP Port 5000', codeInvocation: 'apiClient.get()' },
+      { id: 'e2', source: 'node-be-gateway', target: 'node-db-main', label: 'Mongoose ODM Connection', protocol: 'ORM', physicalProtocol: 'TCP/IP Port 27017', codeInvocation: 'Model.find()' }
     );
   }
 
@@ -528,9 +551,9 @@ export function autoGenerateProjectFromManifests(
     snapshots: [
       {
         id: `snap-local-init`,
-        versionLabel: 'v1.0 Snapshot Escaneo Local Profundo',
+        versionLabel: 'v1.0 Snapshot Escaneo Profundo',
         date: new Date().toISOString().split('T')[0],
-        notes: 'Análisis profundo de archivos locales, microservicios, endpoints y código fuente.',
+        notes: 'Análisis de variables process.env, esquemas DB, colas y subcomponentes.',
         nodes,
         edges
       }

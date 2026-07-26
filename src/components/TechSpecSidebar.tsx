@@ -23,7 +23,11 @@ import {
   Layout,
   Code2,
   Terminal,
-  Bot
+  Bot,
+  Radio,
+  Key,
+  Box,
+  Sliders
 } from 'lucide-react';
 
 interface TechSpecSidebarProps {
@@ -60,6 +64,7 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
       case 'microservice': return <Cpu className="w-4 h-4 text-white" />;
       case 'auth': return <Shield className="w-4 h-4 text-white" />;
       case 'storage': return <HardDrive className="w-4 h-4 text-white" />;
+      case 'devops': return <Terminal className="w-4 h-4 text-white" />;
       default: return <Layers className="w-4 h-4 text-white" />;
     }
   };
@@ -100,14 +105,14 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
     onUpdateNode({ ...selectedNode, status: newStatus });
   };
 
-  // Category Tabs Definition
+  // Category Tabs Definition (8 Templates)
   const renderCategoryTabs = () => {
     if (!selectedNode) return null;
     const cat = selectedNode.category;
 
     if (cat === 'frontend') {
       return [
-        { id: 'ui', label: 'VISTAS UI' },
+        { id: 'ui', label: 'VISTAS & UI' },
         { id: 'consumed_api', label: 'CONSUMO API' },
         { id: 'stack', label: 'PAQUETES' }
       ];
@@ -129,6 +134,30 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
         { id: 'ai_models', label: 'MOTOR IA' },
         { id: 'services', label: 'FASTAPI/SERVICES' },
         { id: 'stack', label: 'PAQUETES PYTHON' }
+      ];
+    } else if (cat === 'queue') {
+      return [
+        { id: 'queue_events', label: 'EVENTOS & QUEUES' },
+        { id: 'workers', label: 'WORKERS' },
+        { id: 'stack', label: 'BROKER STACK' }
+      ];
+    } else if (cat === 'auth') {
+      return [
+        { id: 'identity', label: 'PROVEEDOR SSO' },
+        { id: 'env', label: 'KEYS & SECRETS' },
+        { id: 'stack', label: 'AUTH STACK' }
+      ];
+    } else if (cat === 'storage') {
+      return [
+        { id: 'buckets', label: 'BUCKETS & S3' },
+        { id: 'permissions', label: 'PERMISOS' },
+        { id: 'stack', label: 'STORAGE STACK' }
+      ];
+    } else if (cat === 'devops') {
+      return [
+        { id: 'docker', label: 'CONTAINERS DOCKER' },
+        { id: 'pipeline', label: 'CI/CD PIPELINE' },
+        { id: 'stack', label: 'INFRA STACK' }
       ];
     } else {
       return [
@@ -250,7 +279,7 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
                                 {sn.label}
                               </span>
                               <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 font-bold">
-                                {sn.type}
+                                {sn.linesOfCode || 120} LoC
                               </span>
                             </div>
                             {sn.details && (
@@ -382,6 +411,11 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
+                            {ep.parameters && ep.parameters.length > 0 && (
+                              <div className="text-[10px] text-neutral-400 font-mono">
+                                Parámetros URL: <span className="text-white font-bold">{ep.parameters.join(', ')}</span>
+                              </div>
+                            )}
                             {ep.description && (
                               <p className="text-[11px] text-neutral-400 font-sans">{ep.description}</p>
                             )}
@@ -410,7 +444,7 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
                                 {sn.label}
                               </span>
                               <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 font-bold">
-                                {sn.type}
+                                {sn.linesOfCode || 180} LoC
                               </span>
                             </div>
                             {sn.details && (
@@ -427,13 +461,13 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
               </>
             )}
 
-            {/* DATABASE SPECIFIC TEMPLATE */}
+            {/* DATABASE SPECIFIC TEMPLATE (Deep Field Extractor) */}
             {selectedNode.category === 'database' && (
               <>
                 {currentTab === 'tables' && (
                   <div className="space-y-4 font-mono">
                     <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
-                      ESQUEMAS Y COLECCIONES DE BASE DE DATOS ({selectedNode.tables?.length || 0})
+                      ESQUEMAS Y TABLAS DE BASE DE DATOS ({selectedNode.tables?.length || 0})
                     </span>
 
                     {selectedNode.tables && selectedNode.tables.length > 0 ? (
@@ -461,35 +495,32 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-neutral-900">
-                                <tr>
-                                  <td className="py-1 text-white font-bold">_id</td>
-                                  <td className="py-1 text-neutral-400">ObjectId</td>
-                                  <td className="py-1 text-right text-neutral-400 font-bold">PK</td>
-                                </tr>
-                                <tr>
-                                  <td className="py-1 text-white font-bold">titulo / nombre</td>
-                                  <td className="py-1 text-neutral-400">String</td>
-                                  <td className="py-1 text-right text-neutral-500">INDEX</td>
-                                </tr>
-                                <tr>
-                                  <td className="py-1 text-white font-bold">creadoEn</td>
-                                  <td className="py-1 text-neutral-400">Date</td>
-                                  <td className="py-1 text-right text-neutral-600">-</td>
-                                </tr>
-                                <tr>
-                                  <td className="py-1 text-white font-bold">estado</td>
-                                  <td className="py-1 text-neutral-400">String</td>
-                                  <td className="py-1 text-right text-neutral-600">-</td>
-                                </tr>
+                                {tbl.sampleFields && tbl.sampleFields.length > 0 ? (
+                                  tbl.sampleFields.map(f => (
+                                    <tr key={f.name}>
+                                      <td className="py-1 text-white font-bold">{f.name}</td>
+                                      <td className="py-1 text-neutral-400">{f.type}</td>
+                                      <td className="py-1 text-right text-neutral-400 font-bold">
+                                        {f.isPk ? 'PK' : f.isIndexed ? 'INDEX' : '-'}
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <>
+                                    <tr>
+                                      <td className="py-1 text-white font-bold">_id</td>
+                                      <td className="py-1 text-neutral-400">ObjectId</td>
+                                      <td className="py-1 text-right text-neutral-400 font-bold">PK</td>
+                                    </tr>
+                                    <tr>
+                                      <td className="py-1 text-white font-bold">titulo / nombre</td>
+                                      <td className="py-1 text-neutral-400">String</td>
+                                      <td className="py-1 text-right text-neutral-500">INDEX</td>
+                                    </tr>
+                                  </>
+                                )}
                               </tbody>
                             </table>
-
-                            {tbl.relations.length > 0 && (
-                              <div className="pt-2 border-t border-neutral-900 flex items-center gap-1.5 text-[10px] text-neutral-400">
-                                <span>Relaciones / Foreign Keys:</span>
-                                <span className="text-white font-bold">{tbl.relations.join(', ')}</span>
-                              </div>
-                            )}
                           </div>
                         </div>
                       ))
@@ -511,12 +542,123 @@ export const TechSpecSidebar: React.FC<TechSpecSidebarProps> = ({
                         <span className="text-white font-bold">:{selectedNode.port || 27017}</span>
                       </div>
                       <div className="flex justify-between text-neutral-300">
-                        <span>Estado de Índices:</span>
-                        <span className="text-white font-bold">OPTIMIZADO</span>
+                        <span>Cluster:</span>
+                        <span className="text-white font-bold">MongoDB Atlas M10 Dedicated</span>
                       </div>
                       <div className="flex justify-between text-neutral-300">
-                        <span>Conexiones Activas:</span>
-                        <span className="text-white font-bold">12 / 100</span>
+                        <span>Estado de Índices:</span>
+                        <span className="text-white font-bold">OPTIMIZADO (B-TREE)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* QUEUE / BROKER SPECIFIC TEMPLATE (NEW) */}
+            {selectedNode.category === 'queue' && (
+              <>
+                {currentTab === 'queue_events' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                      COLAS DE EVENTOS ASÍNCRONOS Y BROKER
+                    </span>
+
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex justify-between items-center font-bold text-white">
+                        <span className="flex items-center gap-1.5">
+                          <Radio className="w-4 h-4 text-white" /> BullMQ Redis Queue
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-neutral-900 text-white border border-neutral-800">
+                          PORT :6379
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-neutral-400">
+                        Dispatcher asíncrono para enviar notificaciones e informes.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {currentTab === 'workers' && (
+                  <div className="space-y-2 font-mono">
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-1">
+                      <div className="flex justify-between text-xs font-bold text-white">
+                        <span>NotificationWorker</span>
+                        <span className="text-[9px] text-neutral-500">2 CONCURRENCY</span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400">Procesador en segundo plano para emails y PDFs</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* AUTH / IDENTITY PROVIDER SPECIFIC TEMPLATE (NEW) */}
+            {selectedNode.category === 'auth' && (
+              <>
+                {currentTab === 'identity' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                      PROVEEDOR DE IDENTIDAD Y SESIONES SSO
+                    </span>
+
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex justify-between text-neutral-300">
+                        <span>Mecanismo Auth:</span>
+                        <span className="text-white font-bold">JWT Bearer Token / OAuth2</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-300">
+                        <span>Expiración de Sesión:</span>
+                        <span className="text-white font-bold">30 Días</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* STORAGE SPECIFIC TEMPLATE (NEW) */}
+            {selectedNode.category === 'storage' && (
+              <>
+                {currentTab === 'buckets' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                      BUCKETS Y REPOSITORIOS DE ARCHIVOS
+                    </span>
+
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex justify-between text-neutral-300">
+                        <span>Tipo Almacenamiento:</span>
+                        <span className="text-white font-bold">AWS S3 / Multer Uploads</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-300">
+                        <span>Archivos Permitidos:</span>
+                        <span className="text-white font-bold">PDF, PNG, JSON, ZIP</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* DEVOPS SPECIFIC TEMPLATE (NEW) */}
+            {selectedNode.category === 'devops' && (
+              <>
+                {currentTab === 'docker' && (
+                  <div className="space-y-3 font-mono">
+                    <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold block">
+                      CONTAINERS DOCKER E INFRAESTRUCTURA CI/CD
+                    </span>
+
+                    <div className="p-3 bg-black rounded border border-neutral-800 space-y-2 text-xs">
+                      <div className="flex justify-between text-neutral-300">
+                        <span>Base Image:</span>
+                        <span className="text-white font-bold">node:20-alpine / python:3.11-slim</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-300">
+                        <span>CI/CD Pipeline:</span>
+                        <span className="text-white font-bold">GitHub Actions Auto-Deploy</span>
                       </div>
                     </div>
                   </div>

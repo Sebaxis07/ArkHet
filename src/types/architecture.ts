@@ -1,14 +1,15 @@
 export type NodeCategory = 
-  | 'core'
   | 'frontend' 
   | 'backend' 
   | 'database' 
-  | 'auth' 
-  | 'storage' 
-  | 'infra' 
   | 'queue' 
   | 'microservice' 
-  | 'external-api';
+  | 'auth' 
+  | 'storage' 
+  | 'devops' 
+  | 'cloud';
+
+export type NodeStatus = 'healthy' | 'refactoring' | 'warning' | 'deprecated';
 
 export type LayerViewMode = 'logical' | 'physical' | 'code';
 
@@ -17,62 +18,52 @@ export interface Endpoint {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'WS';
   path: string;
   description?: string;
-  authRequired?: boolean;
+  parameters?: string[];
+  responseType?: string;
 }
 
 export interface DBSchemaTable {
   name: string;
   columnsCount: number;
   relations: string[];
-  ormModel?: string;
+  sampleFields?: Array<{ name: string; type: string; isPk?: boolean; isIndexed?: boolean }>;
 }
 
 export interface EnvVariable {
   key: string;
-  required: boolean;
   sampleValue?: string;
-  description?: string;
   isSecret?: boolean;
-}
-
-export interface ClusterZone {
-  id: string;
-  title: string;
-  layer: 'presentation' | 'application' | 'data' | 'infra';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  collapsed?: boolean;
+  required?: boolean;
 }
 
 export interface SubNode {
   id: string;
   label: string;
-  type: 'route' | 'controller' | 'service' | 'model' | 'middleware' | 'worker';
+  type: 'route' | 'controller' | 'service' | 'model' | 'worker' | 'component' | 'config';
   details?: string;
+  linesOfCode?: number;
 }
 
 export interface ArchNode {
   id: string;
   label: string;
   category: NodeCategory;
+  clusterId?: string;
   description: string;
   x: number;
   y: number;
-  clusterId?: string;
-  subNodes?: SubNode[];
-  expanded?: boolean;
   techStack?: string[];
-  port?: number | string;
+  port?: number;
   hosting?: string;
+  domainUrl?: string;
+  cpuRam?: string;
+  sslEnabled?: boolean;
+  folderPath?: string;
+  status: NodeStatus;
   endpoints?: Endpoint[];
   tables?: DBSchemaTable[];
   envVars?: EnvVariable[];
-  folderPath?: string;
-  status: 'healthy' | 'refactoring' | 'warning' | 'deprecated';
-  version?: string;
-  coverageScore?: number;
+  subNodes?: SubNode[];
 }
 
 export interface ArchEdge {
@@ -80,17 +71,19 @@ export interface ArchEdge {
   source: string;
   target: string;
   label?: string;
-  protocol?: string;
-  layer?: LayerViewMode;
+  protocol?: 'HTTP' | 'HTTPS' | 'TCP' | 'gRPC' | 'WS' | 'WSS' | 'ORM' | 'File Access' | 'AMQP' | 'Kafka';
+  physicalProtocol?: string;
+  codeInvocation?: string;
 }
 
-export interface FolderItem {
+export interface ClusterZone {
   id: string;
-  name: string;
-  path: string;
-  type: 'folder' | 'file';
-  nodeCategory?: NodeCategory;
-  children?: FolderItem[];
+  title: string;
+  layer: 'presentation' | 'application' | 'data' | 'infrastructure';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface ArchitectureSnapshot {
@@ -104,11 +97,20 @@ export interface ArchitectureSnapshot {
 
 export interface ArchitectureRisk {
   id: string;
-  type: 'security' | 'performance' | 'tech_debt' | 'missing_docs';
+  type: 'security' | 'bottleneck' | 'deprecated' | 'coupling';
   title: string;
   description: string;
-  severity: 'high' | 'medium' | 'low';
+  severity: 'low' | 'medium' | 'high';
   targetNodeId?: string;
+}
+
+export interface FolderItem {
+  id: string;
+  name: string;
+  path: string;
+  type: 'folder' | 'file';
+  children?: FolderItem[];
+  nodeCategory?: NodeCategory;
 }
 
 export interface GitInfo {
@@ -116,48 +118,39 @@ export interface GitInfo {
   owner?: string;
   repoName?: string;
   currentBranch?: string;
-  lastCommitHash?: string;
-  lastCommitMessage?: string;
-  uncommittedChangesCount?: number;
   isLinkedToUser?: boolean;
 }
 
 export interface UserProfile {
   id: string;
   username: string;
-  displayName?: string;
-  avatarUrl: string;
-  email?: string;
-  gitProvider?: 'github' | 'gitlab';
-  accessToken?: string;
+  email: string;
+  avatarUrl?: string;
   token?: string;
-  linkedReposCount?: number;
   gitLinkedAccount?: {
-    username?: string;
-    accessToken?: string;
-    isLinked?: boolean;
+    username: string;
+    accessToken: string;
   };
-  createdAt?: string;
 }
 
 export interface Project {
   id: string;
+  userId?: string;
   name: string;
   description: string;
-  category: 'Web App' | 'AI / ML' | 'Microservices' | 'Unity / Game' | 'Internal Tool' | 'Cloud Infra';
-  healthStatus: 'production' | 'staging' | 'development' | 'refactoring';
+  category: string;
+  healthStatus: 'healthy' | 'warning' | 'critical' | 'development';
   complexityScore: number;
-  repository?: string;
-  branch?: string;
   primaryStack: string[];
-  clusters?: ClusterZone[];
+  clusters: ClusterZone[];
   nodes: ArchNode[];
   edges: ArchEdge[];
   folderStructure: FolderItem[];
   snapshots: ArchitectureSnapshot[];
   risks?: ArchitectureRisk[];
   gitInfo?: GitInfo;
-  userId?: string;
+  repository?: string;
+  branch?: string;
   pendingTasks?: string[];
   updatedAt: string;
 }
