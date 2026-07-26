@@ -24,10 +24,7 @@ import {
   Code2,
   Terminal,
   Bot,
-  Radio,
-  Key,
-  Box,
-  Sliders
+  Radio
 } from 'lucide-react';
 
 interface TechSpecSidebarProps {

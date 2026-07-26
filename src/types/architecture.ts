@@ -130,6 +130,7 @@ export interface UserProfile {
   gitLinkedAccount?: {
     username: string;
     accessToken: string;
+    isLinked?: boolean;
   };
 }
 
@@ -139,7 +140,7 @@ export interface Project {
   name: string;
   description: string;
   category: string;
-  healthStatus: 'healthy' | 'warning' | 'critical' | 'development';
+  healthStatus: 'production' | 'healthy' | 'refactoring' | 'staging' | 'warning' | 'critical' | 'development';
   complexityScore: number;
   primaryStack: string[];
   clusters: ClusterZone[];
