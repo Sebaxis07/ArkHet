@@ -408,42 +408,42 @@ export function App() {
 
   return (
     <div className="w-screen h-screen flex flex-col bg-[#0A0A0A] text-neutral-100 overflow-hidden font-sans select-none">
-      {/* REDESIGNED PREMUM NAVBAR HEADER (ALWAYS ON TOP z-50) */}
-      <header className="h-16 bg-[#0D0D0D] border-b border-neutral-800 px-4 sm:px-6 flex items-center justify-between shrink-0 relative z-50 font-mono shadow-2xl">
-        {/* Left Segment: Logo + Interactive Breadcrumb */}
-        <div className="flex items-center gap-3">
+      {/* MOBILE & DESKTOP ADAPTIVE NAVBAR HEADER */}
+      <header className="h-14 sm:h-16 bg-[#0D0D0D] border-b border-neutral-800 px-3 sm:px-6 flex items-center justify-between shrink-0 relative z-50 font-mono shadow-2xl">
+        {/* Left Segment: Logo + Compact Mobile Title / Breadcrumb */}
+        <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
           <div 
             onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); }}
-            className="flex items-center gap-3 cursor-pointer group"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0"
           >
-            <div className="relative">
+            <div className="relative shrink-0">
               <img 
                 src="/logo.png" 
                 alt="Arkhet Logo" 
-                className="h-8 sm:h-9 w-auto object-contain rounded-md transition-transform group-hover:scale-105 border border-neutral-800"
+                className="h-7 sm:h-9 w-auto object-contain rounded transition-transform group-hover:scale-105 border border-neutral-800"
               />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-white rounded-full border-2 border-[#0D0D0D] animate-ping" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-white rounded-full border-2 border-[#0D0D0D]" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-white rounded-full border border-[#0D0D0D] animate-ping" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-white rounded-full border border-[#0D0D0D]" />
             </div>
 
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-white tracking-widest text-sm sm:text-base font-mono leading-none">ARKHET</span>
-                <span className="px-1.5 py-0.2 text-[8px] font-mono bg-neutral-900 text-neutral-400 border border-neutral-800 rounded font-bold">
+            <div className="flex flex-col shrink-0">
+              <div className="flex items-center gap-1">
+                <span className="font-bold text-white tracking-wider text-xs sm:text-base font-mono leading-none">ARKHET</span>
+                <span className="hidden sm:inline px-1.5 py-0.2 text-[8px] font-mono bg-neutral-900 text-neutral-400 border border-neutral-800 rounded font-bold">
                   v2.0 OS
                 </span>
               </div>
-              <span className="text-[9px] text-neutral-500 font-mono tracking-tighter">GRAFO VIVO DE ARQUITECTURA</span>
+              <span className="hidden sm:inline text-[9px] text-neutral-500 font-mono tracking-tighter">GRAFO VIVO DE ARQUITECTURA</span>
             </div>
           </div>
 
-          {/* Breadcrumb Pill */}
+          {/* Breadcrumb Pill (Mobile & Desktop) */}
           {activeProject ? (
-            <div className="hidden sm:flex items-center gap-2 font-mono text-xs pl-3 border-l border-neutral-800">
-              <ChevronRight className="w-3.5 h-3.5 text-neutral-600" />
-              <div className="flex items-center gap-2 bg-black px-3 py-1 rounded-full border border-neutral-800 text-white font-bold">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                <span className="truncate max-w-[140px] md:max-w-[220px] uppercase tracking-wide">
+            <div className="flex items-center gap-1 sm:gap-2 font-mono text-[11px] sm:text-xs pl-2 sm:pl-3 border-l border-neutral-800 overflow-hidden">
+              <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-neutral-600 shrink-0" />
+              <div className="flex items-center gap-1.5 bg-black px-2.5 py-0.5 sm:py-1 rounded-full border border-neutral-800 text-white font-bold overflow-hidden">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                <span className="truncate max-w-[110px] sm:max-w-[160px] md:max-w-[220px] uppercase tracking-wide text-[10px] sm:text-xs">
                   {activeProject.name}
                 </span>
               </div>
@@ -458,7 +458,7 @@ export function App() {
           )}
         </div>
 
-        {/* Center Segment: Navigation & Core Mode Switcher (Desktop) */}
+        {/* Center Segment: Navigation & Core Mode Switcher (Desktop Only) */}
         <div className="hidden md:flex items-center bg-black p-1 rounded-lg border border-neutral-800/90 shadow-inner gap-1 text-xs">
           <button
             onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); }}
@@ -486,7 +486,7 @@ export function App() {
           </button>
         </div>
 
-        {/* Right Segment: Status, Actions & Profile */}
+        {/* Right Segment: Status, Actions & Profile (Desktop Only) */}
         <div className="hidden lg:flex items-center gap-3 text-xs">
           {/* Active Background Scan Progress Indicator */}
           {activeImportTask && activeImportTask.isMinimized && (
@@ -556,12 +556,12 @@ export function App() {
           </div>
         </div>
 
-        {/* Mobile Controls Toolbar */}
-        <div className="flex lg:hidden items-center gap-2">
+        {/* CLEAN HIGH-TECH MOBILE TOOLBAR CONTROLS (< lg) */}
+        <div className="flex lg:hidden items-center gap-1.5 shrink-0">
           {activeProject && (
             <button
               onClick={() => setIsLeftSidebarOpenMobile(!isLeftSidebarOpenMobile)}
-              className="p-2 bg-neutral-900 border border-neutral-800 rounded text-neutral-300 hover:text-white"
+              className="p-1.5 bg-neutral-900 border border-neutral-800 rounded text-neutral-300 hover:text-white"
               title="Árbol de Archivos"
             >
               <FolderTree className="w-4 h-4" />
@@ -571,7 +571,7 @@ export function App() {
           {activeProject && (
             <button
               onClick={() => setIsRightSidebarOpenMobile(!isRightSidebarOpenMobile)}
-              className="p-2 bg-neutral-900 border border-neutral-800 rounded text-neutral-300 hover:text-white"
+              className="p-1.5 bg-neutral-900 border border-neutral-800 rounded text-neutral-300 hover:text-white"
               title="Ficha Técnica Inspector"
             >
               <SlidersHorizontal className="w-4 h-4" />
@@ -580,16 +580,17 @@ export function App() {
 
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 bg-[#171717] border border-neutral-800 rounded text-white"
+            className="p-1.5 bg-white text-black font-bold rounded border border-white flex items-center justify-center"
+            title="Menú de Navegación"
           >
-            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
         </div>
       </header>
 
       {/* Mobile Drawer Menu */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden bg-[#121212] border-b border-neutral-800 p-4 space-y-3 font-mono text-xs z-40">
+        <div className="lg:hidden bg-[#121212] border-b border-neutral-800 p-4 space-y-3 font-mono text-xs z-40 animate-in slide-in-from-top-2 duration-150">
           <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
             <UserProfileWidget
               user={userProfile}
@@ -600,6 +601,13 @@ export function App() {
 
           <div className="grid grid-cols-2 gap-2">
             <button
+              onClick={() => { setIsMobileMenuOpen(false); setActiveProjectId(null); setSelectedNodeId(null); }}
+              className="p-2.5 bg-[#171717] border border-neutral-800 text-white font-bold rounded flex items-center justify-center gap-1.5"
+            >
+              <Compass className="w-3.5 h-3.5 text-white" /> MAPA ECOSISTEMA
+            </button>
+
+            <button
               onClick={() => { setIsMobileMenuOpen(false); handleOpenLocalDirectoryTop(); }}
               className="p-2.5 bg-white text-black font-bold rounded flex items-center justify-center gap-1.5"
             >
@@ -608,9 +616,9 @@ export function App() {
 
             <button
               onClick={() => { setIsMobileMenuOpen(false); setShowComparator(true); }}
-              className="p-2.5 bg-neutral-900 border border-neutral-800 text-white font-bold rounded flex items-center justify-center gap-1.5"
+              className="col-span-2 p-2.5 bg-neutral-900 border border-neutral-800 text-white font-bold rounded flex items-center justify-center gap-1.5"
             >
-              <GitBranch className="w-3.5 h-3.5" /> COMPARAR
+              <GitBranch className="w-3.5 h-3.5 text-neutral-400" /> COMPARAR ARQUITECTURAS
             </button>
 
             {userProfile && (
@@ -618,7 +626,7 @@ export function App() {
                 onClick={() => { setIsMobileMenuOpen(false); setShowRepoSuggestionsModal(true); }}
                 className="col-span-2 p-2.5 bg-neutral-900 border border-neutral-800 text-white font-bold rounded flex items-center justify-center gap-1.5"
               >
-                <FolderGit2 className="w-3.5 h-3.5" /> REPOS DE @{userProfile.username}
+                <FolderGit2 className="w-3.5 h-3.5" /> REPOSITORIOS DE @{userProfile.username}
               </button>
             )}
 
@@ -628,13 +636,13 @@ export function App() {
                   onClick={() => { setIsMobileMenuOpen(false); setShowSnapshotManager(true); }}
                   className="p-2.5 bg-black border border-neutral-800 text-neutral-300 font-bold rounded flex items-center justify-center gap-1.5"
                 >
-                  <History className="w-3.5 h-3.5" /> SNAPSHOTS
+                  <History className="w-3.5 h-3.5" /> SNAPSHOTS ({activeProject.snapshots?.length || 0})
                 </button>
                 <button
-                  onClick={() => { setIsMobileMenuOpen(false); setShowExportModal(false); }}
+                  onClick={() => { setIsMobileMenuOpen(false); setShowExportModal(true); }}
                   className="p-2.5 bg-black border border-neutral-800 text-neutral-300 font-bold rounded flex items-center justify-center gap-1.5"
                 >
-                  <Download className="w-3.5 h-3.5" /> EXPORTAR
+                  <Download className="w-3.5 h-3.5" /> EXPORTAR MAPA
                 </button>
               </>
             )}
@@ -658,7 +666,7 @@ export function App() {
           <>
             {/* Left Sidebar - Desktop & Responsive Mobile Drawer */}
             <div className={`
-              fixed lg:static top-16 bottom-0 left-0 h-[calc(100vh-4rem)] z-30 transition-transform duration-300 ease-in-out
+              fixed lg:static top-14 sm:top-16 bottom-0 left-0 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] z-30 transition-transform duration-300 ease-in-out
               ${isLeftSidebarOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
               <FolderTreeSidebar
@@ -684,7 +692,7 @@ export function App() {
 
             {/* Right Sidebar - Desktop & Responsive Mobile Drawer */}
             <div className={`
-              fixed lg:static top-16 bottom-0 right-0 h-[calc(100vh-4rem)] z-30 transition-transform duration-300 ease-in-out
+              fixed lg:static top-14 sm:top-16 bottom-0 right-0 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] z-30 transition-transform duration-300 ease-in-out
               ${isRightSidebarOpenMobile ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
             `}>
               <TechSpecSidebar
