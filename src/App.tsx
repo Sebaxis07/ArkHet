@@ -408,8 +408,8 @@ export function App() {
 
   return (
     <div className="w-screen h-screen flex flex-col bg-[#0A0A0A] text-neutral-100 overflow-hidden font-sans select-none">
-      {/* REDESIGNED PREMUM NAVBAR HEADER */}
-      <header className="h-16 bg-[#0D0D0D]/90 backdrop-blur-md border-b border-neutral-800/80 px-4 sm:px-6 flex items-center justify-between shrink-0 z-30 font-mono shadow-2xl">
+      {/* REDESIGNED PREMUM NAVBAR HEADER (ALWAYS ON TOP z-50) */}
+      <header className="h-16 bg-[#0D0D0D] border-b border-neutral-800 px-4 sm:px-6 flex items-center justify-between shrink-0 relative z-50 font-mono shadow-2xl">
         {/* Left Segment: Logo + Interactive Breadcrumb */}
         <div className="flex items-center gap-3">
           <div 
@@ -642,8 +642,8 @@ export function App() {
         </div>
       )}
 
-      {/* Main View Area */}
-      <main className="flex-1 flex overflow-hidden relative">
+      {/* Main View Area (z-10 strictly under Header z-50) */}
+      <main className="flex-1 flex overflow-hidden relative z-10">
         {!activeProject ? (
           <RadarView
             projects={projects}
@@ -658,7 +658,7 @@ export function App() {
           <>
             {/* Left Sidebar - Desktop & Responsive Mobile Drawer */}
             <div className={`
-              fixed lg:static inset-y-16 left-0 z-40 transition-transform duration-300 ease-in-out
+              fixed lg:static top-16 bottom-0 left-0 h-[calc(100vh-4rem)] z-30 transition-transform duration-300 ease-in-out
               ${isLeftSidebarOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
               <FolderTreeSidebar
@@ -684,7 +684,7 @@ export function App() {
 
             {/* Right Sidebar - Desktop & Responsive Mobile Drawer */}
             <div className={`
-              fixed lg:static inset-y-16 right-0 z-40 transition-transform duration-300 ease-in-out
+              fixed lg:static top-16 bottom-0 right-0 h-[calc(100vh-4rem)] z-30 transition-transform duration-300 ease-in-out
               ${isRightSidebarOpenMobile ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
             `}>
               <TechSpecSidebar
@@ -700,7 +700,7 @@ export function App() {
             {(isLeftSidebarOpenMobile || isRightSidebarOpenMobile) && (
               <div 
                 onClick={() => { setIsLeftSidebarOpenMobile(false); setIsRightSidebarOpenMobile(false); }}
-                className="lg:hidden fixed inset-0 bg-black/60 z-30 backdrop-blur-sm"
+                className="lg:hidden fixed inset-0 bg-black/60 z-20 backdrop-blur-sm"
               />
             )}
 
