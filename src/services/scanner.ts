@@ -283,6 +283,7 @@ export function autoGenerateProjectFromManifests(
 
   const stack = [...parsedPkg.stack];
   if (hasTopLevelAi) stack.push('Python 3.11', 'FastAPI / LLM');
+  if (hasTopLevelDevops) stack.push('Docker Container', 'CI/CD Pipeline');
   if (deepAnalysis.extractedAiServices.length > 0) {
     deepAnalysis.extractedAiServices.forEach(s => {
       if (!stack.includes(s)) stack.push(s);
@@ -424,7 +425,24 @@ export function autoGenerateProjectFromManifests(
       });
     }
 
-    // 5. FILE STORAGE NODE
+    // 5. DEVOPS & INFRASTRUCTURE NODE
+    if (hasTopLevelDevops) {
+      const devopsFolder = topLevelFolders.find(f => /docker|k8s|deploy|ci/i.test(f.name));
+      nodes.push({
+        id: 'node-devops-infra',
+        label: `Infraestructura Docker CI/CD`,
+        category: 'devops',
+        clusterId: 'zone-db',
+        description: `Contenedores Docker y pipelines de despliegue en ${devopsFolder ? devopsFolder.path : '/docker'}`,
+        x: 930,
+        y: 300,
+        techStack: ['Docker Container', 'GitHub Actions', 'Nginx Proxy'],
+        folderPath: devopsFolder ? devopsFolder.path : '/docker',
+        status: 'healthy'
+      });
+    }
+
+    // 6. FILE STORAGE NODE
     if (hasTopLevelUploads) {
       const uploadFolder = topLevelFolders.find(f => /upload|deliverable|storage|media/i.test(f.name));
       nodes.push({
@@ -434,7 +452,7 @@ export function autoGenerateProjectFromManifests(
         clusterId: 'zone-db',
         description: `Repositorio de documentos y archivos adjuntos`,
         x: 930,
-        y: 320,
+        y: 440,
         techStack: ['AWS S3 Bucket', 'Multer Storage'],
         folderPath: uploadFolder ? uploadFolder.path : '/uploads',
         status: 'healthy'
@@ -451,7 +469,7 @@ export function autoGenerateProjectFromManifests(
       });
     }
 
-    // 6. DATABASE NODE
+    // 7. DATABASE NODE
     nodes.push({
       id: 'node-db-main',
       label: `Base de Datos MongoDB`,
@@ -459,7 +477,7 @@ export function autoGenerateProjectFromManifests(
       clusterId: 'zone-db',
       description: `Almacenamiento persistente de datos de ${name}`,
       x: 930,
-      y: 460,
+      y: 580,
       techStack: ['MongoDB 7.0', 'Mongoose ODM'],
       port: 27017,
       hosting: 'MongoDB Atlas Cloud Cluster',
