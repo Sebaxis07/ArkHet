@@ -30,9 +30,9 @@ import {
   FolderTree
 } from 'lucide-react';
 
-const LOCAL_STORAGE_KEY_PROJECTS = 'project_architecture_os_projects_v8';
-const LOCAL_STORAGE_KEY_ACTIVE_ID = 'project_architecture_os_active_id_v8';
-const LOCAL_STORAGE_KEY_USER = 'project_architecture_os_user_v2';
+const LOCAL_STORAGE_KEY_PROJECTS = 'project_architecture_os_projects_v9';
+const LOCAL_STORAGE_KEY_ACTIVE_ID = 'project_architecture_os_active_id_v9';
+const LOCAL_STORAGE_KEY_USER = 'project_architecture_os_user_v9';
 
 export function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
@@ -338,6 +338,11 @@ export function App() {
     setShowRepoSuggestionsModal(true);
   };
 
+  const handleLogoutFull = () => {
+    setUserProfile(null);
+    localStorage.removeItem(LOCAL_STORAGE_KEY_USER);
+  };
+
   return (
     <div className="w-screen h-screen flex flex-col bg-[#0A0A0A] text-neutral-100 overflow-hidden font-sans select-none">
       {/* Top Responsive Navbar */}
@@ -449,7 +454,7 @@ export function App() {
             <UserProfileWidget
               user={userProfile}
               onOpenGitAuth={() => setShowGitAuthModal(true)}
-              onLogout={() => setUserProfile(null)}
+              onLogout={handleLogoutFull}
             />
           </div>
         </div>
@@ -492,7 +497,7 @@ export function App() {
             <UserProfileWidget
               user={userProfile}
               onOpenGitAuth={() => { setIsMobileMenuOpen(false); setShowGitAuthModal(true); }}
-              onLogout={() => setUserProfile(null)}
+              onLogout={handleLogoutFull}
             />
           </div>
 
