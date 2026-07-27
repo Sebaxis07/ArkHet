@@ -294,8 +294,7 @@ export function autoGenerateProjectFromManifests(
   const clusters: ClusterZone[] = [
     { id: 'zone-fe', title: `CAPA 1: PRESENTACIÓN CLIENTE`, layer: 'presentation', x: 40, y: 80, width: 340, height: 460 },
     { id: 'zone-be', title: `CAPA 2: SERVIDORES API Y NEGOCIO`, layer: 'application', x: 420, y: 80, width: 440, height: 460 },
-    { id: 'zone-db', title: `CAPA 3: PERSISTENCIA Y MICROSERVICIOS`, layer: 'data', x: 900, y: 80, width: 360, height: 460 },
-    { id: 'zone-deploy', title: `CAPA 4: DESPLIEGUE Y NUBE (LIVE PRODUCTION)`, layer: 'cloud_deployment', x: 1300, y: 80, width: 360, height: 460 }
+    { id: 'zone-db', title: `CAPA 3: PERSISTENCIA Y MICROSERVICIOS`, layer: 'data', x: 900, y: 80, width: 360, height: 460 }
   ];
 
   const nodes: ArchNode[] = [];
@@ -508,27 +507,9 @@ export function autoGenerateProjectFromManifests(
       ]
     });
 
-    // 8. DEPLOYMENT NODE (CAPA 4)
-    nodes.push({
-      id: 'node-cloud-deploy',
-      label: `Entorno Producción Vercel`,
-      category: 'cloud',
-      clusterId: 'zone-deploy',
-      description: `Despliegue de producción activo en Vercel Edge Network`,
-      x: 1330,
-      y: 140,
-      techStack: ['Vercel Cloud', 'HTTPS SSL', 'CDN Edge'],
-      domainUrl: defaultVercelUrl,
-      status: 'healthy',
-      isDeployed: true,
-      deploymentUrl: defaultVercelUrl,
-      cloudProvider: 'Vercel Serverless Network'
-    });
-
     edges.push(
       { id: 'e-fe-be', source: 'node-fe-app', target: 'node-be-gateway', label: 'HTTP REST / JSON', protocol: 'HTTP', physicalProtocol: 'TLS/HTTPS 443', codeInvocation: 'fetch("/api/data")' },
-      { id: 'e-be-db', source: 'node-be-gateway', target: 'node-db-main', label: 'Mongoose ODM Connection', protocol: 'ORM', physicalProtocol: 'MongoDB Wire Protocol 27017', codeInvocation: 'mongoose.connect(URI)' },
-      { id: 'e-be-cloud', source: 'node-be-gateway', target: 'node-cloud-deploy', label: 'Live Vercel Auto-Deploy', protocol: 'HTTPS', physicalProtocol: 'HTTPS Port 443', codeInvocation: 'git push origin main' }
+      { id: 'e-be-db', source: 'node-be-gateway', target: 'node-db-main', label: 'Mongoose ODM Connection', protocol: 'ORM', physicalProtocol: 'MongoDB Wire Protocol 27017', codeInvocation: 'mongoose.connect(URI)' }
     );
   } else {
     // Single directory architecture

@@ -168,29 +168,34 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
     return groups;
   };
 
-  // Ensure Clusters include CAPA 4: DESPLIEGUE & NUBE
-  const activeClusters: ClusterZone[] = clusters.some(c => c.layer === 'cloud_deployment') ? clusters : [
-    ...clusters,
-    { id: 'zone-deploy', title: `CAPA 4: DESPLIEGUE & NUBE (LIVE PRODUCTION)`, layer: 'cloud_deployment', x: 1300, y: 80, width: 360, height: 460 }
-  ];
+  // Check if any node is explicitly assigned to cloud_deployment
+  const cloudNodes = nodes.filter(n => n.clusterId === 'zone-deploy' || n.category === 'cloud');
 
-  // Compute Dynamic Adaptive Bounding Boxes for Clusters
+  const activeClusters: ClusterZone[] = cloudNodes.length > 0 ? (
+    clusters.some(c => c.layer === 'cloud_deployment') ? clusters : [
+      ...clusters,
+      { id: 'zone-deploy', title: `CAPA 4: DESPLIEGUE & NUBE (LIVE PRODUCTION)`, layer: 'cloud_deployment', x: 1240, y: 80, width: 360, height: 460 }
+    ]
+  ) : clusters.filter(c => c.layer !== 'cloud_deployment');
+
+  // Compute Dynamic Adaptive Bounding Boxes for Clusters (FILTER OUT EMPTY CLUSTERS)
   const dynamicClusters = activeClusters.map(cluster => {
     const memberNodes = nodes.filter(n => 
       n.clusterId === cluster.id || 
-      (cluster.layer === 'presentation' && n.category === 'frontend') ||
-      (cluster.layer === 'application' && (n.category === 'backend' || n.category === 'auth' || n.category === 'queue')) ||
-      (cluster.layer === 'data' && (n.category === 'database' || n.category === 'microservice' || n.category === 'storage')) ||
-      (cluster.layer === 'cloud_deployment' && (n.category === 'cloud' || n.isDeployed))
+      (cluster.layer === 'presentation' && n.category === 'frontend' && (!n.clusterId || n.clusterId === 'zone-fe')) ||
+      (cluster.layer === 'application' && (n.category === 'backend' || n.category === 'auth' || n.category === 'queue') && (!n.clusterId || n.clusterId === 'zone-be')) ||
+      (cluster.layer === 'data' && (n.category === 'database' || n.category === 'microservice' || n.category === 'storage') && (!n.clusterId || n.clusterId === 'zone-db')) ||
+      (cluster.layer === 'cloud_deployment' && (n.category === 'cloud' || n.clusterId === 'zone-deploy'))
     );
 
+    // CRITICAL FIX: NEVER DRAW EMPTY CLUSTER CONTAINERS!
     if (memberNodes.length === 0) {
-      return cluster;
+      return null;
     }
 
-    const paddingX = 30;
-    const paddingTop = 50;
-    const paddingBottom = 30;
+    const paddingX = 25;
+    const paddingTop = 45;
+    const paddingBottom = 25;
     const cardWidth = 320;
 
     const minX = Math.min(...memberNodes.map(n => n.x)) - paddingX;
@@ -208,10 +213,10 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
       ...cluster,
       x: minX,
       y: minY,
-      width: Math.max(350, maxX - minX),
-      height: Math.max(280, maxY - minY)
+      width: Math.max(340, maxX - minX),
+      height: Math.max(260, maxY - minY)
     };
-  });
+  }).filter(Boolean) as (ClusterZone & { x: number; y: number; width: number; height: number })[];
 
   return (
     <div 
@@ -287,7 +292,7 @@ export const ArchitectureGraph: React.FC<ArchitectureGraphProps> = ({
         onTouchStart={handleTouchStart}
       >
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-          {/* Dynamic Cluster Bounding Containers */}
+          {/* Dynamic Cluster Bounding Containers (ONLY RENDERED WHEN NON-EMPTY) */}
           {dynamicClusters.map(cluster => (
             <g key={cluster.id} className="transition-all duration-150 ease-out">
               <rect
