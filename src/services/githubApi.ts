@@ -18,6 +18,23 @@ export interface GithubRepoItem {
   default_branch: string;
 }
 
+export interface GithubCommitItem {
+  sha: string;
+  commit: {
+    author: {
+      name: string;
+      email: string;
+      date: string;
+    };
+    message: string;
+  };
+  author?: {
+    login: string;
+    avatar_url: string;
+  };
+  html_url: string;
+}
+
 export async function fetchUserGithubRepos(token?: string, username?: string): Promise<GithubRepoItem[]> {
   try {
     // 1. Try Authenticated Fetch if Token is present
@@ -51,6 +68,27 @@ export async function fetchUserGithubRepos(token?: string, username?: string): P
     return [];
   } catch (e: any) {
     console.warn('Could not fetch GitHub repos:', e);
+    return [];
+  }
+}
+
+export async function fetchRepoCommits(token: string, owner: string, repo: string): Promise<GithubCommitItem[]> {
+  try {
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github.v3+json'
+    };
+    if (token && !token.startsWith('ghp_demo')) {
+      headers['Authorization'] = `token ${token}`;
+    }
+
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=100`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+    return [];
+  } catch (e) {
+    console.warn('Could not fetch commits:', e);
     return [];
   }
 }

@@ -1,89 +1,85 @@
-import { useState, useEffect, useRef } from 'react';
-import type { Project, ArchNode, LayerViewMode, ArchitectureSnapshot, UserProfile } from './types/architecture';
+import { useState, useEffect } from 'react';
+import type { Project, ArchNode, LayerViewMode, UserProfile } from './types/architecture';
 import { INITIAL_PROJECTS } from './data/mockProjects';
-import { RadarView } from './components/RadarView';
 import { ArchitectureGraph } from './components/ArchitectureGraph';
-import { FolderTreeSidebar } from './components/FolderTreeSidebar';
 import { TechSpecSidebar } from './components/TechSpecSidebar';
-import { ProjectComparator } from './components/ProjectComparator';
+import { RadarView } from './components/RadarView';
+import { CompareView } from './components/CompareView';
+import { FolderTreeSidebar } from './components/FolderTreeSidebar';
 import { SnapshotManager } from './components/SnapshotManager';
 import { ExportModal } from './components/ExportModal';
-import { ProjectScannerModal } from './components/ProjectScannerModal';
-import { ArchIntelligenceOverlay } from './components/ArchIntelligenceOverlay';
 import { GitAuthModal } from './components/GitAuthModal';
-import { UserProfileWidget } from './components/UserProfileWidget';
 import { GitRepoSuggestionsModal } from './components/GitRepoSuggestionsModal';
+import { UserProfileWidget } from './components/UserProfileWidget';
 import { ImportProgressModal } from './components/ImportProgressModal';
+import { CommitHistoryModal } from './components/CommitHistoryModal';
 import { scanNativeDirectoryHandle } from './services/scanner';
-import { fetchUserProjectsCloud, syncProjectCloud, clearStoredAuthToken } from './services/apiClient';
+import { fetchUserProjectsCloud, syncProjectCloud } from './services/apiClient';
 import { 
-  Download, 
-  History, 
+  Menu, 
+  X, 
+  Compass, 
   GitBranch, 
-  HardDrive,
-  RefreshCw,
-  FolderGit2,
-  Sparkles,
-  Maximize2,
-  Menu,
-  X,
-  SlidersHorizontal,
-  FolderTree,
+  HardDrive, 
+  RefreshCw, 
+  History, 
+  Download, 
   ChevronRight,
-  Compass
+  FolderGit2,
+  Maximize2,
+  Sparkles,
+  GitCommit
 } from 'lucide-react';
 
-const LOCAL_STORAGE_KEY_PROJECTS = 'project_architecture_os_projects_v9';
-const LOCAL_STORAGE_KEY_ACTIVE_ID = 'project_architecture_os_active_id_v9';
-const LOCAL_STORAGE_KEY_USER = 'project_architecture_os_user_v9';
+const STORAGE_KEY_PROJECTS = 'arkhet_projects_v9';
+const STORAGE_KEY_ACTIVE_ID = 'arkhet_active_project_id_v9';
+const STORAGE_KEY_USER_PROFILE = 'arkhet_user_profile_v9';
 
 export function App() {
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
-    try {
-      const savedUser = localStorage.getItem(LOCAL_STORAGE_KEY_USER);
-      if (savedUser) return JSON.parse(savedUser);
-    } catch (e) {
-      console.warn('Could not read user profile from localStorage:', e);
-    }
-    return null;
-  });
-
+  // Projects & Active View State
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY_PROJECTS);
+      const saved = localStorage.getItem(STORAGE_KEY_PROJECTS);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
-      console.warn('Could not read saved projects from localStorage:', e);
+      console.warn('Could not parse local projects:', e);
     }
     return INITIAL_PROJECTS;
   });
 
   const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
     try {
-      const savedId = localStorage.getItem(LOCAL_STORAGE_KEY_ACTIVE_ID);
-      return savedId || null;
-    } catch (e) {
-      return null;
-    }
+      const savedId = localStorage.getItem(STORAGE_KEY_ACTIVE_ID);
+      if (savedId && savedId !== 'null') return savedId;
+    } catch (e) {}
+    return null;
   });
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [layerView, setLayerView] = useState<LayerViewMode>('logical');
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEY_USER_PROFILE);
+      if (savedUser) return JSON.parse(savedUser);
+    } catch (e) {}
+    return null;
+  });
 
-  // Mobile Drawer State
-  const [isLeftSidebarOpenMobile, setIsLeftSidebarOpenMobile] = useState(false);
-  const [isRightSidebarOpenMobile, setIsRightSidebarOpenMobile] = useState(false);
+  // Layer & Node Selection
+  const [layerView, setLayerView] = useState<LayerViewMode>('logical');
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  // Modals & Drawers
+  const [showComparator, setShowComparator] = useState(false);
+  const [showSnapshotManager, setShowSnapshotManager] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showGitAuthModal, setShowGitAuthModal] = useState(false);
+  const [showRepoSuggestionsModal, setShowRepoSuggestionsModal] = useState(false);
+  const [showCommitModal, setShowCommitModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Auto-Sync Watcher State
-  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(true);
-  const [isSyncingLive, setIsSyncingLive] = useState<boolean>(false);
-  const dirHandlesMap = useRef<Record<string, any>>({});
-
-  // Background Scanning & Import Progress State
+  // Background Scanning State
   const [activeImportTask, setActiveImportTask] = useState<{
     repoName: string;
     percent: number;
@@ -91,104 +87,92 @@ export function App() {
     isMinimized: boolean;
   } | null>(null);
 
-  // Modals
-  const [showScanner, setShowScanner] = useState(false);
-  const [showComparator, setShowComparator] = useState(false);
-  const [showSnapshotManager, setShowSnapshotManager] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [showGitAuthModal, setShowGitAuthModal] = useState(false);
-  const [showRepoSuggestionsModal, setShowRepoSuggestionsModal] = useState(false);
+  // Live Auto-Sync
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState(true);
+  const [isSyncingLive, setIsSyncingLive] = useState(false);
 
-  // Load Cloud Projects from MongoDB Atlas on mount or when userProfile changes
+  // Cloud Pull Projects on User Auth
   useEffect(() => {
-    async function loadCloudProjects() {
-      if (userProfile) {
+    async function pullCloudProjects() {
+      if (userProfile && userProfile.email) {
+        setIsSyncingLive(true);
         const cloudProjs = await fetchUserProjectsCloud();
         if (cloudProjs.length > 0) {
-          setProjects(prev => {
-            const merged = [...prev];
-            cloudProjs.forEach(cp => {
-              const idx = merged.findIndex(p => p.name === cp.name);
-              if (idx >= 0) merged[idx] = cp;
-              else merged.push(cp);
-            });
-            return merged;
-          });
+          setProjects(cloudProjs);
         }
+        setIsSyncingLive(false);
       }
     }
-    loadCloudProjects();
-  }, [userProfile]);
+    pullCloudProjects();
+  }, [userProfile?.email]);
 
+  // Persist State
   useEffect(() => {
     try {
-      if (userProfile) {
-        localStorage.setItem(LOCAL_STORAGE_KEY_USER, JSON.stringify(userProfile));
-      } else {
-        localStorage.removeItem(LOCAL_STORAGE_KEY_USER);
-      }
-    } catch (e) {
-      console.warn('Could not save user profile:', e);
-    }
-  }, [userProfile]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY_PROJECTS, JSON.stringify(projects));
-    } catch (e) {
-      console.warn('Could not save projects to localStorage:', e);
-    }
+      localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+    } catch (e) {}
   }, [projects]);
 
   useEffect(() => {
     try {
-      if (activeProjectId) {
-        localStorage.setItem(LOCAL_STORAGE_KEY_ACTIVE_ID, activeProjectId);
-      } else {
-        localStorage.removeItem(LOCAL_STORAGE_KEY_ACTIVE_ID);
-      }
-    } catch (e) {
-      console.warn('Could not save active project ID to localStorage:', e);
-    }
+      localStorage.setItem(STORAGE_KEY_ACTIVE_ID, activeProjectId || 'null');
+    } catch (e) {}
   }, [activeProjectId]);
+
+  useEffect(() => {
+    try {
+      if (userProfile) localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify(userProfile));
+      else localStorage.removeItem(STORAGE_KEY_USER_PROFILE);
+    } catch (e) {}
+  }, [userProfile]);
 
   const activeProject = projects.find(p => p.id === activeProjectId) || null;
   const selectedNode = activeProject?.nodes.find(n => n.id === selectedNodeId) || null;
 
-  // Background Live Watcher Effect
+  // Sync Active Project Cloud
   useEffect(() => {
-    if (!isAutoSyncEnabled || !activeProjectId) return;
+    if (activeProject && isAutoSyncEnabled && userProfile?.email) {
+      setIsSyncingLive(true);
+      const timer = setTimeout(async () => {
+        await syncProjectCloud(activeProject);
+        setIsSyncingLive(false);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeProject, isAutoSyncEnabled, userProfile?.email]);
 
-    const interval = setInterval(async () => {
-      const activeHandle = dirHandlesMap.current[activeProjectId];
-      if (activeHandle) {
-        try {
-          setIsSyncingLive(true);
-          const updatedProj = await scanNativeDirectoryHandle(activeHandle);
-          dirHandlesMap.current[updatedProj.id] = activeHandle;
-          
-          setProjects(prev => prev.map(p => p.id === activeProjectId ? {
-            ...updatedProj,
-            id: activeProjectId,
-            userId: userProfile?.id || p.userId,
-            gitInfo: {
-              ...updatedProj.gitInfo,
-              owner: userProfile?.username || p.gitInfo?.owner,
-              isLinkedToUser: !!userProfile
-            },
-            nodes: updatedProj.nodes,
-            folderStructure: updatedProj.folderStructure
-          } : p));
-        } catch (e) {
-          // Silent catch for live watcher
-        } finally {
-          setTimeout(() => setIsSyncingLive(false), 800);
+  // Handle Native Local Folder Selection
+  const handleOpenLocalDirectoryTop = async () => {
+    try {
+      if ('showDirectoryPicker' in window) {
+        const handle = await (window as any).showDirectoryPicker();
+        if (handle) {
+          setActiveImportTask({
+            repoName: handle.name,
+            percent: 15,
+            stepText: `Analizando disco local: ${handle.name}...`,
+            isMinimized: false
+          });
+
+          const newProj = await scanNativeDirectoryHandle(handle, (percent, stepText) => {
+            setActiveImportTask(prev => prev ? { ...prev, percent, stepText } : null);
+          });
+
+          newProj.userId = userProfile?.email;
+          setProjects(prev => [newProj, ...prev]);
+          setActiveProjectId(newProj.id);
+          setActiveImportTask(null);
         }
+      } else {
+        alert('Tu navegador no soporta el acceso directo a carpetas locales. Usa Google Chrome o Edge.');
       }
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [isAutoSyncEnabled, activeProjectId, userProfile]);
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.warn('Error reading local directory:', e);
+      }
+      setActiveImportTask(null);
+    }
+  };
 
   const handleStartBackgroundImport = (repoName: string, promise: Promise<Project>) => {
     setActiveImportTask({
@@ -199,218 +183,83 @@ export function App() {
     });
 
     if ((promise as any).subscribeProgress) {
-      (promise as any).subscribeProgress((pct: number, text: string) => {
-        setActiveImportTask(prev => prev ? { ...prev, percent: pct, stepText: text } : null);
+      (promise as any).subscribeProgress((percent: number, stepText: string) => {
+        setActiveImportTask(prev => prev ? { ...prev, percent, stepText } : null);
       });
     }
 
-    promise.then(newProject => {
-      handleImportProject(newProject);
-      setTimeout(() => {
-        setActiveImportTask(null);
-      }, 1200);
+    promise.then((newProj) => {
+      newProj.userId = userProfile?.email;
+      setProjects(prev => [newProj, ...prev]);
+      setActiveProjectId(newProj.id);
+      setActiveImportTask(null);
+      if (userProfile?.email) {
+        syncProjectCloud(newProj);
+      }
     }).catch(err => {
-      alert('Error en el escaneo de repositorio: ' + err.message);
+      console.error('Error importing project:', err);
       setActiveImportTask(null);
     });
   };
 
-  const handleOpenLocalDirectoryTop = async () => {
-    if ('showDirectoryPicker' in window) {
-      try {
-        const dirHandle = await (window as any).showDirectoryPicker({ mode: 'read' });
-        
-        let progressCb: ((pct: number, text: string) => void) | null = null;
-        
-        const scanPromise = scanNativeDirectoryHandle(dirHandle, (pct, text) => {
-          if (progressCb) progressCb(pct, text);
-        });
-
-        (scanPromise as any).subscribeProgress = (cb: (pct: number, text: string) => void) => {
-          progressCb = cb;
-        };
-
-        handleStartBackgroundImport(`CARPETA LOCAL (${dirHandle.name})`, scanPromise);
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          alert('Error al acceder a la carpeta local: ' + err.message);
-        }
-      }
-    } else {
-      setShowScanner(true);
-    }
-  };
-
-  const handleUpdateNodes = (newNodes: ArchNode[]) => {
-    if (!activeProjectId) return;
-    setProjects(prev => prev.map(p => {
-      if (p.id === activeProjectId) {
-        const updated = { ...p, nodes: newNodes };
-        syncProjectCloud(updated);
-        return updated;
-      }
-      return p;
-    }));
-  };
-
-  const handleUpdateSingleNode = (updatedNode: ArchNode) => {
-    if (!activeProjectId) return;
-    setProjects(prev => prev.map(p => {
-      if (p.id === activeProjectId) {
-        const updated = {
-          ...p,
-          nodes: p.nodes.map(n => n.id === updatedNode.id ? updatedNode : n)
-        };
-        syncProjectCloud(updated);
-        return updated;
-      }
-      return p;
-    }));
+  // Node Mutations
+  const handleUpdateNode = (updatedNode: ArchNode) => {
+    if (!activeProject) return;
+    const updatedNodes = activeProject.nodes.map(n => n.id === updatedNode.id ? updatedNode : n);
+    const updatedProject = { ...activeProject, nodes: updatedNodes, updatedAt: new Date().toISOString() };
+    setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
   };
 
   const handleDeleteNode = (nodeId: string) => {
-    if (!activeProjectId) return;
-    setProjects(prev => prev.map(p => {
-      if (p.id === activeProjectId) {
-        const updated = {
-          ...p,
-          nodes: p.nodes.filter(n => n.id !== nodeId),
-          edges: p.edges.filter(e => e.source !== nodeId && e.target !== nodeId)
-        };
-        syncProjectCloud(updated);
-        return updated;
-      }
-      return p;
-    }));
-    setSelectedNodeId(null);
+    if (!activeProject) return;
+    const updatedNodes = activeProject.nodes.filter(n => n.id !== nodeId);
+    const updatedEdges = activeProject.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+    const updatedProject = { ...activeProject, nodes: updatedNodes, edges: updatedEdges, updatedAt: new Date().toISOString() };
+    setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
+    if (selectedNodeId === nodeId) setSelectedNodeId(null);
+  };
+
+  const handleAddNode = () => {
+    if (!activeProject) return;
+    const newNode: ArchNode = {
+      id: `node-${Date.now()}`,
+      label: 'Nuevo Servicio',
+      category: 'backend',
+      clusterId: 'zone-be',
+      description: 'Microservicio recién añadido al mapa',
+      x: 450,
+      y: 200,
+      techStack: ['Node.js', 'Express.js'],
+      status: 'healthy'
+    };
+    const updatedProject = { ...activeProject, nodes: [...activeProject.nodes, newNode], updatedAt: new Date().toISOString() };
+    setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
+    setSelectedNodeId(newNode.id);
+  };
+
+  const handleSaveSnapshot = () => {
+    if (!activeProject) return;
+    const newSnap = {
+      id: `snap-${Date.now()}`,
+      versionLabel: `v1.${(activeProject.snapshots?.length || 0) + 1}`,
+      date: new Date().toISOString().split('T')[0],
+      notes: 'Snapshot guardado por el usuario',
+      nodes: activeProject.nodes,
+      edges: activeProject.edges
+    };
+    const updatedProject = { ...activeProject, snapshots: [...(activeProject.snapshots || []), newSnap] };
+    setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
   };
 
   const handleDeleteProject = (projectId: string) => {
     setProjects(prev => prev.filter(p => p.id !== projectId));
-    if (activeProjectId === projectId) {
-      setActiveProjectId(null);
-    }
-  };
-
-  const handleAddCustomNode = () => {
-    if (!activeProjectId || !activeProject) return;
-    const newNodeId = `node-custom-${Date.now()}`;
-    const newNode: ArchNode = {
-      id: newNodeId,
-      label: 'Nuevo Servicio Modulado',
-      category: 'backend',
-      description: 'Componente de arquitectura recién agregado',
-      x: 480,
-      y: 260,
-      techStack: ['Node.js'],
-      status: 'healthy',
-      subNodes: [
-        { id: `sn-${Date.now()}-1`, label: 'CustomController', type: 'controller' },
-        { id: `sn-${Date.now()}-2`, label: 'CustomService', type: 'service' }
-      ]
-    };
-    setProjects(prev => prev.map(p => {
-      if (p.id === activeProjectId) {
-        const updated = { ...p, nodes: [...p.nodes, newNode] };
-        syncProjectCloud(updated);
-        return updated;
-      }
-      return p;
-    }));
-    setSelectedNodeId(newNodeId);
-  };
-
-  const handleSaveSnapshot = (versionLabel: string, notes: string) => {
-    if (!activeProjectId || !activeProject) return;
-    const newSnapshot: ArchitectureSnapshot = {
-      id: `snap-${Date.now()}`,
-      versionLabel,
-      date: new Date().toISOString().split('T')[0],
-      notes,
-      nodes: [...activeProject.nodes],
-      edges: [...activeProject.edges]
-    };
-    setProjects(prev => prev.map(p => {
-      if (p.id === activeProjectId) {
-        const updated = { ...p, snapshots: [newSnapshot, ...(p.snapshots || [])] };
-        syncProjectCloud(updated);
-        return updated;
-      }
-      return p;
-    }));
-  };
-
-  const handleRestoreSnapshot = (snapshot: ArchitectureSnapshot) => {
-    if (!activeProjectId || !snapshot.nodes) return;
-    setProjects(prev => prev.map(p => {
-      if (p.id === activeProjectId) {
-        const updated = { ...p, nodes: snapshot.nodes, edges: snapshot.edges };
-        syncProjectCloud(updated);
-        return updated;
-      }
-      return p;
-    }));
-  };
-
-  const handleImportProject = (newProject: Project) => {
-    if ((newProject as any)._dirHandle) {
-      dirHandlesMap.current[newProject.id] = (newProject as any)._dirHandle;
-    }
-    const projectWithUser: Project = {
-      ...newProject,
-      userId: userProfile?.id,
-      gitInfo: {
-        ...newProject.gitInfo,
-        owner: userProfile?.username || newProject.gitInfo?.owner,
-        isLinkedToUser: !!userProfile
-      }
-    };
-
-    setProjects(prev => {
-      const existsIndex = prev.findIndex(p => p.name === newProject.name);
-      if (existsIndex >= 0) {
-        const copy = [...prev];
-        copy[existsIndex] = projectWithUser;
-        return copy;
-      }
-      return [projectWithUser, ...prev];
-    });
-    setActiveProjectId(projectWithUser.id);
-    syncProjectCloud(projectWithUser);
-  };
-
-  const handleLoginSuccess = async (user: UserProfile) => {
-    setUserProfile(user);
-    setShowGitAuthModal(false);
-
-    // Auto pull cloud projects from MongoDB Atlas after login
-    const cloudProjs = await fetchUserProjectsCloud();
-    if (cloudProjs.length > 0) {
-      setProjects(prev => {
-        const merged = [...prev];
-        cloudProjs.forEach(cp => {
-          const idx = merged.findIndex(p => p.name === cp.name);
-          if (idx >= 0) merged[idx] = cp;
-          else merged.push(cp);
-        });
-        return merged;
-      });
-    }
-
-    setShowRepoSuggestionsModal(true);
-  };
-
-  const handleLogoutFull = () => {
-    setUserProfile(null);
-    clearStoredAuthToken();
-    localStorage.removeItem(LOCAL_STORAGE_KEY_USER);
+    if (activeProjectId === projectId) setActiveProjectId(null);
   };
 
   return (
     <div className="w-screen h-screen flex flex-col bg-[#0A0A0A] text-neutral-100 overflow-hidden font-sans select-none">
-      {/* MOBILE & DESKTOP ADAPTIVE NAVBAR HEADER */}
+      {/* NAVBAR HEADER */}
       <header className="h-14 sm:h-16 bg-[#0D0D0D] border-b border-neutral-800 px-3 sm:px-6 flex items-center justify-between shrink-0 relative z-50 font-mono shadow-2xl">
-        {/* Left Segment: Logo + Compact Mobile Title / Breadcrumb */}
         <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
           <div 
             onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); }}
@@ -437,7 +286,6 @@ export function App() {
             </div>
           </div>
 
-          {/* Breadcrumb Pill (Mobile & Desktop) */}
           {activeProject ? (
             <div className="flex items-center gap-1 sm:gap-2 font-mono text-[11px] sm:text-xs pl-2 sm:pl-3 border-l border-neutral-800 overflow-hidden">
               <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-neutral-600 shrink-0" />
@@ -458,7 +306,7 @@ export function App() {
           )}
         </div>
 
-        {/* Center Segment: Navigation & Core Mode Switcher (Desktop Only) */}
+        {/* Center Segment */}
         <div className="hidden md:flex items-center bg-black p-1 rounded-lg border border-neutral-800/90 shadow-inner gap-1 text-xs">
           <button
             onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); }}
@@ -486,9 +334,8 @@ export function App() {
           </button>
         </div>
 
-        {/* Right Segment: Status, Actions & Profile (Desktop Only) */}
+        {/* Right Segment */}
         <div className="hidden lg:flex items-center gap-3 text-xs">
-          {/* Active Background Scan Progress Indicator */}
           {activeImportTask && activeImportTask.isMinimized && (
             <button
               onClick={() => setActiveImportTask(prev => prev ? { ...prev, isMinimized: false } : null)}
@@ -513,7 +360,6 @@ export function App() {
 
           {activeProject && (
             <div className="flex items-center gap-2 border-l border-neutral-800 pl-3">
-              {/* Auto-Sync Live Watcher Button */}
               <button
                 onClick={() => setIsAutoSyncEnabled(!isAutoSyncEnabled)}
                 className={`p-2 rounded-md border font-bold flex items-center gap-1.5 transition-all ${
@@ -524,6 +370,15 @@ export function App() {
                 title={isAutoSyncEnabled ? 'Auto-Sync Activo en Vivo' : 'Auto-Sync Pausado'}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncingLive ? 'animate-spin text-white' : 'text-neutral-400'}`} />
+              </button>
+
+              <button
+                onClick={() => setShowCommitModal(true)}
+                className="px-2.5 py-1.5 rounded-md bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 font-bold flex items-center gap-1.5 transition-colors"
+                title="Historial de Commits de GitHub"
+              >
+                <GitCommit className="w-3.5 h-3.5 text-neutral-400" />
+                <span className="hidden xl:inline">COMMITS</span>
               </button>
 
               <button
@@ -546,235 +401,129 @@ export function App() {
             </div>
           )}
 
-          {/* User Profile Widget */}
           <div className="pl-3 border-l border-neutral-800">
-            <UserProfileWidget
-              user={userProfile}
+            <UserProfileWidget 
+              user={userProfile} 
               onOpenGitAuth={() => setShowGitAuthModal(true)}
-              onLogout={handleLogoutFull}
+              onLogout={() => setUserProfile(null)}
             />
           </div>
         </div>
 
-        {/* CLEAN HIGH-TECH MOBILE TOOLBAR CONTROLS (< lg) */}
-        <div className="flex lg:hidden items-center gap-1.5 shrink-0">
-          {activeProject && (
-            <button
-              onClick={() => setIsLeftSidebarOpenMobile(!isLeftSidebarOpenMobile)}
-              className="p-1.5 bg-neutral-900 border border-neutral-800 rounded text-neutral-300 hover:text-white"
-              title="Árbol de Archivos"
-            >
-              <FolderTree className="w-4 h-4" />
-            </button>
-          )}
-
-          {activeProject && (
-            <button
-              onClick={() => setIsRightSidebarOpenMobile(!isRightSidebarOpenMobile)}
-              className="p-1.5 bg-neutral-900 border border-neutral-800 rounded text-neutral-300 hover:text-white"
-              title="Ficha Técnica Inspector"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
-          )}
-
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-1.5 bg-white text-black font-bold rounded border border-white flex items-center justify-center"
-            title="Menú de Navegación"
-          >
-            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          </button>
-        </div>
+        {/* Mobile Hamburger Button */}
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="lg:hidden p-2 text-neutral-300 hover:text-white rounded bg-black border border-neutral-800"
+        >
+          {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
       </header>
 
-      {/* Mobile Drawer Menu */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden bg-[#121212] border-b border-neutral-800 p-4 space-y-3 font-mono text-xs z-40 animate-in slide-in-from-top-2 duration-150">
-          <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
-            <UserProfileWidget
-              user={userProfile}
-              onOpenGitAuth={() => { setIsMobileMenuOpen(false); setShowGitAuthModal(true); }}
-              onLogout={handleLogoutFull}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => { setIsMobileMenuOpen(false); setActiveProjectId(null); setSelectedNodeId(null); }}
-              className="p-2.5 bg-[#171717] border border-neutral-800 text-white font-bold rounded flex items-center justify-center gap-1.5"
-            >
-              <Compass className="w-3.5 h-3.5 text-white" /> MAPA ECOSISTEMA
-            </button>
-
-            <button
-              onClick={() => { setIsMobileMenuOpen(false); handleOpenLocalDirectoryTop(); }}
-              className="p-2.5 bg-white text-black font-bold rounded flex items-center justify-center gap-1.5"
-            >
-              <HardDrive className="w-3.5 h-3.5" /> CARPETA LOCAL
-            </button>
-
-            <button
-              onClick={() => { setIsMobileMenuOpen(false); setShowComparator(true); }}
-              className="col-span-2 p-2.5 bg-neutral-900 border border-neutral-800 text-white font-bold rounded flex items-center justify-center gap-1.5"
-            >
-              <GitBranch className="w-3.5 h-3.5 text-neutral-400" /> COMPARAR ARQUITECTURAS
-            </button>
-
-            {userProfile && (
-              <button
-                onClick={() => { setIsMobileMenuOpen(false); setShowRepoSuggestionsModal(true); }}
-                className="col-span-2 p-2.5 bg-neutral-900 border border-neutral-800 text-white font-bold rounded flex items-center justify-center gap-1.5"
-              >
-                <FolderGit2 className="w-3.5 h-3.5" /> REPOSITORIOS DE @{userProfile.username}
-              </button>
-            )}
-
-            {activeProject && (
-              <>
-                <button
-                  onClick={() => { setIsMobileMenuOpen(false); setShowSnapshotManager(true); }}
-                  className="p-2.5 bg-black border border-neutral-800 text-neutral-300 font-bold rounded flex items-center justify-center gap-1.5"
-                >
-                  <History className="w-3.5 h-3.5" /> SNAPSHOTS ({activeProject.snapshots?.length || 0})
-                </button>
-                <button
-                  onClick={() => { setIsMobileMenuOpen(false); setShowExportModal(true); }}
-                  className="p-2.5 bg-black border border-neutral-800 text-neutral-300 font-bold rounded flex items-center justify-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5" /> EXPORTAR MAPA
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Main View Area (z-10 strictly under Header z-50) */}
-      <main className="flex-1 flex overflow-hidden relative z-10">
-        {!activeProject ? (
-          <RadarView
+      {/* Main Body Grid */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {showComparator ? (
+          <CompareView 
+            projects={projects}
+            activeProject={activeProject || projects[0]}
+            onBackToRadar={() => setShowComparator(false)}
+          />
+        ) : !activeProjectId ? (
+          <RadarView 
             projects={projects}
             activeImportTask={activeImportTask}
-            onSelectProject={p => setActiveProjectId(p.id)}
-            onOpenScanner={() => setShowScanner(true)}
+            onSelectProject={(proj) => { setActiveProjectId(proj.id); setSelectedNodeId(null); }}
+            onOpenScanner={handleOpenLocalDirectoryTop}
             onOpenComparator={() => setShowComparator(true)}
-            onImportProject={handleImportProject}
             onDeleteProject={handleDeleteProject}
           />
         ) : (
-          <>
-            {/* Left Sidebar - Desktop & Responsive Mobile Drawer */}
-            <div className={`
-              fixed lg:static top-14 sm:top-16 bottom-0 left-0 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] z-30 transition-transform duration-300 ease-in-out
-              ${isLeftSidebarOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-            `}>
-              <FolderTreeSidebar
-                folderStructure={activeProject.folderStructure}
-                layerView={layerView}
-                onChangeLayerView={setLayerView}
-                onBackToRadar={() => { setActiveProjectId(null); setSelectedNodeId(null); setIsLeftSidebarOpenMobile(false); }}
-                projectName={activeProject.name}
-              />
-            </div>
+          <div className="flex-1 flex w-full h-full overflow-hidden">
+            {/* Left Sidebar: Folder Tree Sidebar */}
+            <FolderTreeSidebar 
+              folderStructure={activeProject!.folderStructure || []}
+              layerView={layerView}
+              onChangeLayerView={setLayerView}
+              onBackToRadar={() => setActiveProjectId(null)}
+              projectName={activeProject!.name}
+            />
 
-            {/* Central Architecture Canvas Graph */}
-            <ArchitectureGraph
-              nodes={activeProject.nodes}
-              edges={activeProject.edges}
-              clusters={activeProject.clusters || []}
+            {/* Center Canvas */}
+            <ArchitectureGraph 
+              nodes={activeProject!.nodes}
+              edges={activeProject!.edges}
+              clusters={activeProject!.clusters}
               selectedNodeId={selectedNodeId}
               layerView={layerView}
-              onSelectNode={id => { setSelectedNodeId(id); setIsRightSidebarOpenMobile(true); }}
-              onNodesChange={handleUpdateNodes}
-              onAddNode={handleAddCustomNode}
+              onSelectNode={setSelectedNodeId}
+              onNodesChange={(updatedNodes) => {
+                const updatedProject = { ...activeProject!, nodes: updatedNodes, updatedAt: new Date().toISOString() };
+                setProjects(prev => prev.map(p => p.id === activeProject!.id ? updatedProject : p));
+              }}
+              onAddNode={handleAddNode}
             />
 
-            {/* Right Sidebar - Desktop & Responsive Mobile Drawer */}
-            <div className={`
-              fixed lg:static top-14 sm:top-16 bottom-0 right-0 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] z-30 transition-transform duration-300 ease-in-out
-              ${isRightSidebarOpenMobile ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
-            `}>
-              <TechSpecSidebar
-                project={activeProject}
-                selectedNode={selectedNode}
-                onCloseNodeSelection={() => { setSelectedNodeId(null); setIsRightSidebarOpenMobile(false); }}
-                onUpdateNode={handleUpdateSingleNode}
-                onDeleteNode={handleDeleteNode}
-              />
-            </div>
-
-            {/* Mobile Backdrop for Drawers */}
-            {(isLeftSidebarOpenMobile || isRightSidebarOpenMobile) && (
-              <div 
-                onClick={() => { setIsLeftSidebarOpenMobile(false); setIsRightSidebarOpenMobile(false); }}
-                className="lg:hidden fixed inset-0 bg-black/60 z-20 backdrop-blur-sm"
-              />
-            )}
-
-            {/* Bottom Overlay - Architecture Intelligence & Risk Diagnosis */}
-            <ArchIntelligenceOverlay
-              risks={activeProject.risks || []}
-              complexityScore={activeProject.complexityScore}
-              onSelectRiskTarget={nodeId => { setSelectedNodeId(nodeId); setIsRightSidebarOpenMobile(true); }}
+            {/* Right Tech Spec Sidebar Inspector */}
+            <TechSpecSidebar 
+              project={activeProject!}
+              selectedNode={selectedNode}
+              onCloseNodeSelection={() => setSelectedNodeId(null)}
+              onUpdateNode={handleUpdateNode}
+              onDeleteNode={handleDeleteNode}
             />
-          </>
+          </div>
         )}
-      </main>
+      </div>
 
-      {/* Import Progress Modal */}
-      {activeImportTask && !activeImportTask.isMinimized && (
-        <ImportProgressModal
-          repoName={activeImportTask.repoName}
-          percent={activeImportTask.percent}
-          stepText={activeImportTask.stepText}
-          onMinimize={() => setActiveImportTask(prev => prev ? { ...prev, isMinimized: true } : null)}
-        />
-      )}
-
-      {/* Modals */}
-      {showGitAuthModal && (
-        <GitAuthModal
-          onLoginSuccess={handleLoginSuccess}
-          onClose={() => setShowGitAuthModal(false)}
-        />
-      )}
-
-      {showRepoSuggestionsModal && userProfile && (
-        <GitRepoSuggestionsModal
+      {/* Modals & Overlays */}
+      {showCommitModal && activeProject && userProfile && (
+        <CommitHistoryModal
+          project={activeProject}
           user={userProfile}
-          onImportStart={handleStartBackgroundImport}
-          onClose={() => setShowRepoSuggestionsModal(false)}
-        />
-      )}
-
-      {showScanner && (
-        <ProjectScannerModal
-          onImportProject={handleImportProject}
-          onClose={() => setShowScanner(false)}
-        />
-      )}
-
-      {showComparator && (
-        <ProjectComparator
-          projects={projects}
-          onClose={() => setShowComparator(false)}
+          onClose={() => setShowCommitModal(false)}
         />
       )}
 
       {showSnapshotManager && activeProject && (
         <SnapshotManager
           project={activeProject}
-          onSaveSnapshot={handleSaveSnapshot}
-          onRestoreSnapshot={handleRestoreSnapshot}
           onClose={() => setShowSnapshotManager(false)}
+          onRestoreSnapshot={(snap: any) => {
+            const restoredProject = { ...activeProject, nodes: snap.nodes, edges: snap.edges, updatedAt: new Date().toISOString() };
+            setProjects(prev => prev.map(p => p.id === activeProject.id ? restoredProject : p));
+            setShowSnapshotManager(false);
+          }}
+          onSaveSnapshot={handleSaveSnapshot}
         />
       )}
 
       {showExportModal && activeProject && (
-        <ExportModal
+        <ExportModal 
           project={activeProject}
           onClose={() => setShowExportModal(false)}
+        />
+      )}
+
+      {showGitAuthModal && (
+        <GitAuthModal 
+          onLoginSuccess={(prof: any) => { setUserProfile(prof); setShowGitAuthModal(false); }}
+          onClose={() => setShowGitAuthModal(false)}
+        />
+      )}
+
+      {showRepoSuggestionsModal && userProfile && (
+        <GitRepoSuggestionsModal 
+          user={userProfile}
+          onImportStart={handleStartBackgroundImport}
+          onClose={() => setShowRepoSuggestionsModal(false)}
+        />
+      )}
+
+      {activeImportTask && (
+        <ImportProgressModal
+          repoName={activeImportTask.repoName}
+          percent={activeImportTask.percent}
+          stepText={activeImportTask.stepText}
+          onMinimize={() => setActiveImportTask(prev => prev ? { ...prev, isMinimized: true } : null)}
         />
       )}
     </div>
