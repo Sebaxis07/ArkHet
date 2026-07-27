@@ -37,7 +37,6 @@ export interface GithubCommitItem {
 
 export async function fetchUserGithubRepos(token?: string, username?: string): Promise<GithubRepoItem[]> {
   try {
-    // 1. Try Authenticated Fetch if Token is present
     if (token && !token.startsWith('ghp_demo')) {
       const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
         headers: {
@@ -52,17 +51,16 @@ export async function fetchUserGithubRepos(token?: string, username?: string): P
       }
     }
 
-    // 2. Fallback to Unauthenticated Public Repos Fetch for Username
-    const targetUser = username || 'Sebaxis07';
-    const publicRes = await fetch(`https://api.github.com/users/${targetUser}/repos?sort=updated&per_page=100`, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json'
-      }
-    });
+    const targetUsers = [username, 'Sebaxis07', 'Sebaxis'].filter(Boolean);
+    for (const u of targetUsers) {
+      const publicRes = await fetch(`https://api.github.com/users/${u}/repos?sort=updated&per_page=100`, {
+        headers: { Accept: 'application/vnd.github.v3+json' }
+      });
 
-    if (publicRes.ok) {
-      const publicData = await publicRes.json();
-      if (Array.isArray(publicData)) return publicData;
+      if (publicRes.ok) {
+        const publicData = await publicRes.json();
+        if (Array.isArray(publicData) && publicData.length > 0) return publicData;
+      }
     }
 
     return [];
@@ -81,7 +79,15 @@ export async function fetchRepoCommits(token: string, owner: string, repo: strin
       headers['Authorization'] = `token ${token}`;
     }
 
-    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=100`, { headers });
+    // Try primary owner first
+    let res = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=100`, { headers });
+    
+    // If 404, try alternative fallback usernames (Sebaxis07 <-> Sebaxis)
+    if (!res.ok) {
+      const altOwner = owner === 'Sebaxis' ? 'Sebaxis07' : owner === 'Sebaxis07' ? 'Sebaxis' : 'Sebaxis07';
+      res = await fetch(`https://api.github.com/repos/${altOwner}/${repo}/commits?per_page=100`, { headers });
+    }
+
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -122,31 +128,40 @@ export async function importProjectFromGithubRepo(
       headers['Authorization'] = `token ${token}`;
     }
 
-    // 1. Fetch Repository Details to get real default_branch
+    // 1. Fetch Repository Details to get real default_branch & correct owner
     let branchToUse = defaultBranch || 'main';
+    let ownerToUse = owner;
     try {
-      const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+      let repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+      if (!repoRes.ok && owner === 'Sebaxis') {
+        ownerToUse = 'Sebaxis07';
+        repoRes = await fetch(`https://api.github.com/repos/Sebaxis07/${repo}`, { headers });
+      }
+
       if (repoRes.ok) {
         const repoDetails = await repoRes.json();
         if (repoDetails.default_branch) {
           branchToUse = repoDetails.default_branch;
         }
+        if (repoDetails.owner?.login) {
+          ownerToUse = repoDetails.owner.login;
+        }
       }
     } catch (e) {
-      // Use fallback branch
+      // Use fallback
     }
 
-    reportProgress(35, `Consultando árbol recursivo de directorios (branch: ${branchToUse})...`);
+    reportProgress(35, `Consultando árbol recursivo de directorios (owner: ${ownerToUse}, branch: ${branchToUse})...`);
 
     // 2. Fetch Recursive Git Tree
-    let treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branchToUse}?recursive=1`, {
+    let treeRes = await fetch(`https://api.github.com/repos/${ownerToUse}/${repo}/git/trees/${branchToUse}?recursive=1`, {
       headers
     });
 
     // Fallback try 'master' if 'main' returned 404
     if (!treeRes.ok && branchToUse !== 'master') {
       branchToUse = 'master';
-      treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/master?recursive=1`, {
+      treeRes = await fetch(`https://api.github.com/repos/${ownerToUse}/${repo}/git/trees/master?recursive=1`, {
         headers
       });
     }
@@ -196,7 +211,6 @@ export async function importProjectFromGithubRepo(
         }
       }
 
-      // Limit max parallel manifest fetches to 15 to avoid GitHub API rate limiting
       const itemsToFetch = manifestItems.slice(0, 15);
       let processedCount = 0;
 
@@ -213,7 +227,7 @@ export async function importProjectFromGithubRepo(
             rawHeaders['Authorization'] = `token ${token}`;
           }
 
-          const rawRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${item.path}`, {
+          const rawRes = await fetch(`https://api.github.com/repos/${ownerToUse}/${repo}/contents/${item.path}`, {
             headers: rawHeaders
           });
 
@@ -222,11 +236,9 @@ export async function importProjectFromGithubRepo(
             fetchedFiles.push({ name: item.path.split('/').pop() || item.path, path: `/${item.path}`, content });
           }
         } catch (e) {
-          // Ignore single file fetch failure
+          // Ignore
         }
       }
-    } else {
-      reportProgress(70, `Generando modelo de arquitectura base para ${repo}...`);
     }
   } catch (e) {
     console.warn('Could not fetch recursive GitHub tree:', e);
@@ -251,7 +263,6 @@ export async function importProjectFromGithubRepo(
 
   reportProgress(100, `¡Mapa de arquitectura generado con éxito!`);
 
-  // Allow promise subscribers for live progress
   (project as any).subscribeProgress = (fn: (percent: number, stepText: string) => void) => {
     progressListeners.push(fn);
   };
@@ -259,7 +270,6 @@ export async function importProjectFromGithubRepo(
   return project;
 }
 
-// Function wrapper that connects progress listeners seamlessly
 export function importProjectWithProgress(
   token: string,
   owner: string,

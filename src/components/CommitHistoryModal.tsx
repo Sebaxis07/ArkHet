@@ -26,7 +26,7 @@ export const CommitHistoryModal: React.FC<CommitHistoryModalProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const owner = project.gitInfo?.owner || user.gitLinkedAccount?.username || 'Sebaxis07';
+  const owner = project.gitInfo?.owner || user.username || user.gitLinkedAccount?.username || 'Sebaxis07';
   const repoName = project.gitInfo?.repoName || project.name.toLowerCase().replace(/\s+/g, '-');
   const tokenToUse = user.token || user.gitLinkedAccount?.accessToken || '';
 
