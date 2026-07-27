@@ -14,7 +14,7 @@ import { UserProfileWidget } from './components/UserProfileWidget';
 import { ImportProgressModal } from './components/ImportProgressModal';
 import { CommitHistoryModal } from './components/CommitHistoryModal';
 import { scanNativeDirectoryHandle } from './services/scanner';
-import { fetchUserProjectsCloud, syncProjectCloud } from './services/apiClient';
+import { fetchUserProjectsCloud, syncProjectCloud, clearStoredAuthToken } from './services/apiClient';
 import { 
   Menu, 
   X, 
@@ -35,6 +35,20 @@ const STORAGE_KEY_PROJECTS = 'arkhet_projects_v9';
 const STORAGE_KEY_ACTIVE_ID = 'arkhet_active_project_id_v9';
 const STORAGE_KEY_USER_PROFILE = 'arkhet_user_profile_v9';
 
+// STRICT DEDUPLICATION: Prevents visual glitching and repeating project cards
+function deduplicateProjects(projs: Project[]): Project[] {
+  const seen = new Set<string>();
+  return projs.filter(p => {
+    if (!p || !p.name) return false;
+    const nameKey = p.name.toLowerCase().trim();
+    const key = `${p.id || ''}:${nameKey}`;
+    if (seen.has(key) || seen.has(nameKey)) return false;
+    seen.add(key);
+    seen.add(nameKey);
+    return true;
+  });
+}
+
 export function App() {
   // Projects & Active View State
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -42,12 +56,12 @@ export function App() {
       const saved = localStorage.getItem(STORAGE_KEY_PROJECTS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return deduplicateProjects(parsed);
       }
     } catch (e) {
       console.warn('Could not parse local projects:', e);
     }
-    return INITIAL_PROJECTS;
+    return deduplicateProjects(INITIAL_PROJECTS);
   });
 
   const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
@@ -98,7 +112,7 @@ export function App() {
         setIsSyncingLive(true);
         const cloudProjs = await fetchUserProjectsCloud();
         if (cloudProjs.length > 0) {
-          setProjects(cloudProjs);
+          setProjects(prev => deduplicateProjects([...cloudProjs, ...prev]));
         }
         setIsSyncingLive(false);
       }
@@ -109,7 +123,7 @@ export function App() {
   // Persist State
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+      localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(deduplicateProjects(projects)));
     } catch (e) {}
   }, [projects]);
 
@@ -122,7 +136,10 @@ export function App() {
   useEffect(() => {
     try {
       if (userProfile) localStorage.setItem(STORAGE_KEY_USER_PROFILE, JSON.stringify(userProfile));
-      else localStorage.removeItem(STORAGE_KEY_USER_PROFILE);
+      else {
+        localStorage.removeItem(STORAGE_KEY_USER_PROFILE);
+        clearStoredAuthToken();
+      }
     } catch (e) {}
   }, [userProfile]);
 
@@ -159,7 +176,7 @@ export function App() {
           });
 
           newProj.userId = userProfile?.email;
-          setProjects(prev => [newProj, ...prev]);
+          setProjects(prev => deduplicateProjects([newProj, ...prev]));
           setActiveProjectId(newProj.id);
           setActiveImportTask(null);
         }
@@ -190,7 +207,7 @@ export function App() {
 
     promise.then((newProj) => {
       newProj.userId = userProfile?.email;
-      setProjects(prev => [newProj, ...prev]);
+      setProjects(prev => deduplicateProjects([newProj, ...prev]));
       setActiveProjectId(newProj.id);
       setActiveImportTask(null);
       if (userProfile?.email) {
@@ -207,7 +224,7 @@ export function App() {
     if (!activeProject) return;
     const updatedNodes = activeProject.nodes.map(n => n.id === updatedNode.id ? updatedNode : n);
     const updatedProject = { ...activeProject, nodes: updatedNodes, updatedAt: new Date().toISOString() };
-    setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
+    setProjects(prev => deduplicateProjects(prev.map(p => p.id === activeProject.id ? updatedProject : p)));
   };
 
   const handleDeleteNode = (nodeId: string) => {
@@ -215,7 +232,7 @@ export function App() {
     const updatedNodes = activeProject.nodes.filter(n => n.id !== nodeId);
     const updatedEdges = activeProject.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
     const updatedProject = { ...activeProject, nodes: updatedNodes, edges: updatedEdges, updatedAt: new Date().toISOString() };
-    setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
+    setProjects(prev => deduplicateProjects(prev.map(p => p.id === activeProject.id ? updatedProject : p)));
     if (selectedNodeId === nodeId) setSelectedNodeId(null);
   };
 
@@ -233,7 +250,7 @@ export function App() {
       status: 'healthy'
     };
     const updatedProject = { ...activeProject, nodes: [...activeProject.nodes, newNode], updatedAt: new Date().toISOString() };
-    setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
+    setProjects(prev => deduplicateProjects(prev.map(p => p.id === activeProject.id ? updatedProject : p)));
     setSelectedNodeId(newNode.id);
   };
 
@@ -248,11 +265,11 @@ export function App() {
       edges: activeProject.edges
     };
     const updatedProject = { ...activeProject, snapshots: [...(activeProject.snapshots || []), newSnap] };
-    setProjects(prev => prev.map(p => p.id === activeProject.id ? updatedProject : p));
+    setProjects(prev => deduplicateProjects(prev.map(p => p.id === activeProject.id ? updatedProject : p)));
   };
 
   const handleDeleteProject = (projectId: string) => {
-    setProjects(prev => prev.filter(p => p.id !== projectId));
+    setProjects(prev => deduplicateProjects(prev.filter(p => p.id !== projectId)));
     if (activeProjectId === projectId) setActiveProjectId(null);
   };
 
@@ -405,7 +422,10 @@ export function App() {
             <UserProfileWidget 
               user={userProfile} 
               onOpenGitAuth={() => setShowGitAuthModal(true)}
-              onLogout={() => setUserProfile(null)}
+              onLogout={() => {
+                setUserProfile(null);
+                clearStoredAuthToken();
+              }}
             />
           </div>
         </div>
@@ -457,7 +477,7 @@ export function App() {
               onSelectNode={setSelectedNodeId}
               onNodesChange={(updatedNodes) => {
                 const updatedProject = { ...activeProject!, nodes: updatedNodes, updatedAt: new Date().toISOString() };
-                setProjects(prev => prev.map(p => p.id === activeProject!.id ? updatedProject : p));
+                setProjects(prev => deduplicateProjects(prev.map(p => p.id === activeProject!.id ? updatedProject : p)));
               }}
               onAddNode={handleAddNode}
             />
@@ -489,7 +509,7 @@ export function App() {
           onClose={() => setShowSnapshotManager(false)}
           onRestoreSnapshot={(snap: any) => {
             const restoredProject = { ...activeProject, nodes: snap.nodes, edges: snap.edges, updatedAt: new Date().toISOString() };
-            setProjects(prev => prev.map(p => p.id === activeProject.id ? restoredProject : p));
+            setProjects(prev => deduplicateProjects(prev.map(p => p.id === activeProject.id ? restoredProject : p)));
             setShowSnapshotManager(false);
           }}
           onSaveSnapshot={handleSaveSnapshot}

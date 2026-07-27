@@ -7,7 +7,8 @@ import {
   Lock, 
   Mail, 
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 
 interface GitAuthModalProps {
@@ -33,8 +34,20 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
 
     try {
       if (mode === 'register') {
-        if (!email.includes('@')) {
+        if (!username || username.trim().length < 3) {
+          setErrorText('El nombre de usuario debe tener al menos 3 caracteres.');
+          setIsLoading(false);
+          return;
+        }
+
+        if (!email || !email.includes('@')) {
           setErrorText('Ingresa un correo electrónico válido (debe coincidir con tu cuenta de GitHub).');
+          setIsLoading(false);
+          return;
+        }
+
+        if (!password || password.length < 4) {
+          setErrorText('La contraseña debe tener al menos 4 caracteres.');
           setIsLoading(false);
           return;
         }
@@ -42,27 +55,34 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
         const { user } = await registerUserCloud(username, email, password);
         onLoginSuccess({
           ...user,
-          username: username || 'Sebaxis07',
-          email,
-          avatarUrl: `https://github.com/${username || 'Sebaxis07'}.png`
+          username: user.username || username,
+          email: user.email || email,
+          avatarUrl: `https://github.com/${username}.png`
         });
       } else {
+        if (!username && !email) {
+          setErrorText('Ingresa tu nombre de usuario o correo electrónico.');
+          setIsLoading(false);
+          return;
+        }
+
+        if (!password) {
+          setErrorText('Ingresa tu contraseña.');
+          setIsLoading(false);
+          return;
+        }
+
         const { user } = await loginUserCloud(username || email, password);
         onLoginSuccess({
           ...user,
-          username: user.username || username || 'Sebaxis07',
-          email: user.email || email
+          username: user.username || username,
+          email: user.email || email,
+          avatarUrl: `https://github.com/${user.username || username || 'Sebaxis07'}.png`
         });
       }
     } catch (err: any) {
-      // Local fallback profile
-      const fallbackUser: UserProfile = {
-        id: `usr-${Date.now()}`,
-        username: username || 'Sebaxis07',
-        email: email || `${username || 'sebaxis'}@gmail.com`,
-        avatarUrl: `https://github.com/${username || 'Sebaxis07'}.png`
-      };
-      onLoginSuccess(fallbackUser);
+      // STRICT AUTH: Display clear error and DO NOT bypass login with fake profiles!
+      setErrorText(err.message || 'Error de autenticación. Usuario o contraseña incorrectos.');
     } finally {
       setIsLoading(false);
     }
@@ -93,23 +113,25 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
         <div className="p-3 bg-black rounded border border-neutral-800 space-y-1 text-xs text-neutral-300">
           <div className="flex items-center gap-1.5 font-bold text-white text-[11px]">
             <ShieldCheck className="w-4 h-4 text-white shrink-0" />
-            <span>VERIFICACIÓN DE PROPIEDAD DE PROYECTOS</span>
+            <span>AUTENTICACIÓN SEGURA Y VERIFICACIÓN</span>
           </div>
           <p className="text-[11px] text-neutral-400 font-sans leading-relaxed">
-            Tu correo de Arkhet debe coincidir con tu correo de GitHub para validar la propiedad real de tus repositorios y proteger tus proyectos.
+            Ingresa tus credenciales registradas para autenticarte contra la API de Arkhet.
           </p>
         </div>
 
+        {/* Error Notification Alert */}
         {errorText && (
-          <div className="p-2.5 bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs rounded font-sans">
-            {errorText}
+          <div className="p-3 bg-black border border-neutral-700 text-white text-xs rounded font-sans flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-white shrink-0 mt-0.5" />
+            <span>{errorText}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="text-[10px] text-neutral-400 font-bold uppercase block mb-1">
-              NOMBRE DE USUARIO
+              NOMBRE DE USUARIO / EMAIL
             </label>
             <div className="relative">
               <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
@@ -118,16 +140,15 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 placeholder="Ej. Sebaxis07"
-                className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                required
+                className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white font-mono"
               />
             </div>
           </div>
 
-          {mode === 'register' ? (
+          {mode === 'register' && (
             <div>
               <label className="text-[10px] text-neutral-400 font-bold uppercase block mb-1">
-                CORREO ELECTRÓNICO (Debe coincidir con tu GitHub)
+                CORREO ELECTRÓNICO (GITHUB)
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
@@ -135,26 +156,8 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="tu_correo_de_github@ejemplo.com"
-                  className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                  required
-                />
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="text-[10px] text-neutral-400 font-bold uppercase block mb-1">
-                CORREO ELECTRÓNICO O USUARIO
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-                <input
-                  type="text"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="usuario@ejemplo.com"
-                  className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                  required
+                  placeholder="tu_correo@github.com"
+                  className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white font-mono"
                 />
               </div>
             </div>
@@ -170,9 +173,8 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                required
+                placeholder="••••••••"
+                className="w-full pl-9 pr-3 py-2 bg-black border border-neutral-800 rounded text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-white font-mono"
               />
             </div>
           </div>
@@ -180,28 +182,36 @@ export const GitAuthModal: React.FC<GitAuthModalProps> = ({
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 bg-white hover:bg-neutral-200 text-black font-bold rounded text-xs transition-colors flex items-center justify-center gap-2 mt-3"
+            className="w-full py-2.5 bg-white text-black font-bold text-xs rounded hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2 mt-4"
           >
-            {isLoading ? 'CONECTANDO...' : mode === 'login' ? 'ENTRAR Y SINCRONIZAR' : 'CREAR CUENTA EN ARKHET'}
-            <ArrowRight className="w-4 h-4" />
+            {isLoading ? 'VERIFICANDO CREDENCIALES...' : mode === 'login' ? 'INICIAR SESIÓN' : 'REGISTRAR CUENTA'}
+            <ArrowRight className="w-4 h-4 text-black" />
           </button>
         </form>
 
-        <div className="pt-2 border-t border-neutral-800 text-center text-xs">
+        <div className="text-center pt-2 border-t border-neutral-800 text-[11px] text-neutral-400 font-sans">
           {mode === 'login' ? (
-            <button
-              onClick={() => setMode('register')}
-              className="text-neutral-400 hover:text-white font-bold"
-            >
-              ¿No tienes cuenta? <span className="underline text-white">Regístrate en Arkhet</span>
-            </button>
+            <span>
+              ¿No tienes una cuenta aún?{' '}
+              <button
+                type="button"
+                onClick={() => { setMode('register'); setErrorText(''); }}
+                className="text-white font-bold underline hover:text-neutral-200"
+              >
+                Regístrate aquí
+              </button>
+            </span>
           ) : (
-            <button
-              onClick={() => setMode('login')}
-              className="text-neutral-400 hover:text-white font-bold"
-            >
-              ¿Ya tienes cuenta? <span className="underline text-white">Inicia sesión</span>
-            </button>
+            <span>
+              ¿Ya tienes cuenta en Arkhet?{' '}
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setErrorText(''); }}
+                className="text-white font-bold underline hover:text-neutral-200"
+              >
+                Inicia sesión aquí
+              </button>
+            </span>
           )}
         </div>
       </div>
