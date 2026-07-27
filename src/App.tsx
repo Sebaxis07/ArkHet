@@ -35,16 +35,13 @@ const STORAGE_KEY_PROJECTS = 'arkhet_projects_v9';
 const STORAGE_KEY_ACTIVE_ID = 'arkhet_active_project_id_v9';
 const STORAGE_KEY_USER_PROFILE = 'arkhet_user_profile_v9';
 
-// STRICT DEDUPLICATION: Prevents visual glitching and repeating project cards
+// Safe Deduplication strictly by unique project ID
 function deduplicateProjects(projs: Project[]): Project[] {
   const seen = new Set<string>();
-  return projs.filter(p => {
-    if (!p || !p.name) return false;
-    const nameKey = p.name.toLowerCase().trim();
-    const key = `${p.id || ''}:${nameKey}`;
-    if (seen.has(key) || seen.has(nameKey)) return false;
-    seen.add(key);
-    seen.add(nameKey);
+  return (projs || []).filter(p => {
+    if (!p || !p.id) return false;
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
     return true;
   });
 }
@@ -143,7 +140,7 @@ export function App() {
     } catch (e) {}
   }, [userProfile]);
 
-  const activeProject = projects.find(p => p.id === activeProjectId) || null;
+  const activeProject = (activeProjectId ? projects.find(p => p.id === activeProjectId) : null) || null;
   const selectedNode = activeProject?.nodes.find(n => n.id === selectedNodeId) || null;
 
   // Sync Active Project Cloud
@@ -178,6 +175,8 @@ export function App() {
           newProj.userId = userProfile?.email;
           setProjects(prev => deduplicateProjects([newProj, ...prev]));
           setActiveProjectId(newProj.id);
+          setSelectedNodeId(null);
+          setShowComparator(false);
           setActiveImportTask(null);
         }
       } else {
@@ -209,6 +208,8 @@ export function App() {
       newProj.userId = userProfile?.email;
       setProjects(prev => deduplicateProjects([newProj, ...prev]));
       setActiveProjectId(newProj.id);
+      setSelectedNodeId(null);
+      setShowComparator(false);
       setActiveImportTask(null);
       if (userProfile?.email) {
         syncProjectCloud(newProj);
@@ -279,7 +280,7 @@ export function App() {
       <header className="h-14 sm:h-16 bg-[#0D0D0D] border-b border-neutral-800 px-3 sm:px-6 flex items-center justify-between shrink-0 relative z-50 font-mono shadow-2xl">
         <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
           <div 
-            onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); }}
+            onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); setShowComparator(false); }}
             className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0"
           >
             <div className="relative shrink-0">
@@ -326,9 +327,9 @@ export function App() {
         {/* Center Segment */}
         <div className="hidden md:flex items-center bg-black p-1 rounded-lg border border-neutral-800/90 shadow-inner gap-1 text-xs">
           <button
-            onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); }}
+            onClick={() => { setActiveProjectId(null); setSelectedNodeId(null); setShowComparator(false); }}
             className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${
-              !activeProjectId
+              !activeProjectId && !showComparator
                 ? 'bg-white text-black shadow-md'
                 : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
             }`}
@@ -338,7 +339,11 @@ export function App() {
 
           <button
             onClick={() => setShowComparator(true)}
-            className="px-3 py-1.5 rounded-md font-bold transition-all text-neutral-400 hover:text-white hover:bg-neutral-900 flex items-center gap-1.5"
+            className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${
+              showComparator
+                ? 'bg-white text-black shadow-md'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+            }`}
           >
             <GitBranch className="w-3.5 h-3.5" /> COMPARAR
           </button>
@@ -447,11 +452,18 @@ export function App() {
             activeProject={activeProject || projects[0]}
             onBackToRadar={() => setShowComparator(false)}
           />
-        ) : !activeProjectId ? (
+        ) : (!activeProjectId || !activeProject) ? (
           <RadarView 
             projects={projects}
             activeImportTask={activeImportTask}
-            onSelectProject={(proj) => { setActiveProjectId(proj.id); setSelectedNodeId(null); }}
+            onSelectProject={(proj) => { 
+              if (!proj) return;
+              const match = projects.find(p => p.id === proj.id) || proj;
+              setProjects(prev => deduplicateProjects([match, ...prev]));
+              setActiveProjectId(match.id); 
+              setSelectedNodeId(null); 
+              setShowComparator(false);
+            }}
             onOpenScanner={handleOpenLocalDirectoryTop}
             onOpenComparator={() => setShowComparator(true)}
             onDeleteProject={handleDeleteProject}
@@ -460,31 +472,31 @@ export function App() {
           <div className="flex-1 flex w-full h-full overflow-hidden">
             {/* Left Sidebar: Folder Tree Sidebar */}
             <FolderTreeSidebar 
-              folderStructure={activeProject!.folderStructure || []}
+              folderStructure={activeProject.folderStructure || []}
               layerView={layerView}
               onChangeLayerView={setLayerView}
-              onBackToRadar={() => setActiveProjectId(null)}
-              projectName={activeProject!.name}
+              onBackToRadar={() => { setActiveProjectId(null); setShowComparator(false); }}
+              projectName={activeProject.name}
             />
 
             {/* Center Canvas */}
             <ArchitectureGraph 
-              nodes={activeProject!.nodes}
-              edges={activeProject!.edges}
-              clusters={activeProject!.clusters}
+              nodes={activeProject.nodes || []}
+              edges={activeProject.edges || []}
+              clusters={activeProject.clusters || []}
               selectedNodeId={selectedNodeId}
               layerView={layerView}
               onSelectNode={setSelectedNodeId}
               onNodesChange={(updatedNodes) => {
-                const updatedProject = { ...activeProject!, nodes: updatedNodes, updatedAt: new Date().toISOString() };
-                setProjects(prev => deduplicateProjects(prev.map(p => p.id === activeProject!.id ? updatedProject : p)));
+                const updatedProject = { ...activeProject, nodes: updatedNodes, updatedAt: new Date().toISOString() };
+                setProjects(prev => deduplicateProjects(prev.map(p => p.id === activeProject.id ? updatedProject : p)));
               }}
               onAddNode={handleAddNode}
             />
 
             {/* Right Tech Spec Sidebar Inspector */}
             <TechSpecSidebar 
-              project={activeProject!}
+              project={activeProject}
               selectedNode={selectedNode}
               onCloseNodeSelection={() => setSelectedNodeId(null)}
               onUpdateNode={handleUpdateNode}
