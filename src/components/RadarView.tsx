@@ -43,87 +43,67 @@ export const RadarView: React.FC<RadarViewProps> = ({
   onSelectProject,
   onOpenScanner,
   onOpenComparator,
-  onImportProject,
   onDeleteProject
 }) => {
-  const [viewMode, setViewMode] = useState<'mindmap' | 'grid'>('mindmap');
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('TODOS');
-
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Canvas Mind Map Zoom & Pan State
-  const [zoom, setZoom] = useState(() => (window.innerWidth < 640 ? 0.55 : 0.85));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'mindmap' | 'grid'>('mindmap');
+  const [zoom, setZoom] = useState(0.85);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [touchDistanceStart, setTouchDistanceStart] = useState<number | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
-  const categories = ['TODOS', 'AI / ML', 'Microservices', 'Web App', 'Unity / Game', 'Internal Tool'];
+  useEffect(() => {
+    if (isMobile) setZoom(0.55);
+  }, [isMobile]);
 
-  const handleOpenLocalFolderDirect = async () => {
-    if ('showDirectoryPicker' in window && onImportProject) {
-      try {
-        const dirHandle = await (window as any).showDirectoryPicker({ mode: 'read' });
-        const project = await scanNativeDirectoryHandle(dirHandle);
-        onImportProject(project);
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          alert('Error al acceder a la carpeta local: ' + err.message);
-        }
-      }
-    } else {
-      onOpenScanner();
-    }
-  };
+  const categories = ['TODOS', 'AI / ML', 'microservices', 'web app', 'unity / game', 'internal tool'];
 
   const filteredProjects = projects.filter(p => {
-    const matchesCategory = selectedCategory === 'TODOS' || p.category === selectedCategory;
+    const matchesCat = selectedCategory === 'TODOS' || p.category.toLowerCase() === selectedCategory.toLowerCase();
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.primaryStack.some(s => s.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+                          p.primaryStack.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesCat && matchesSearch;
   });
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'AI / ML': return <Cpu className="w-3.5 h-3.5 text-neutral-300" />;
-      case 'Microservices': return <Boxes className="w-3.5 h-3.5 text-neutral-300" />;
-      case 'Unity / Game': return <Gamepad2 className="w-3.5 h-3.5 text-neutral-300" />;
-      case 'Internal Tool': return <Wrench className="w-3.5 h-3.5 text-neutral-300" />;
-      default: return <Building2 className="w-3.5 h-3.5 text-neutral-300" />;
+  const getCategoryIcon = (cat: string) => {
+    switch (cat.toLowerCase()) {
+      case 'ai / ml': return <Cpu className="w-3.5 h-3.5 text-white" />;
+      case 'microservices': return <Boxes className="w-3.5 h-3.5 text-white" />;
+      case 'web app': return <Wrench className="w-3.5 h-3.5 text-white" />;
+      case 'unity / game': return <Gamepad2 className="w-3.5 h-3.5 text-white" />;
+      case 'internal tool': return <Building2 className="w-3.5 h-3.5 text-white" />;
+      default: return <Boxes className="w-3.5 h-3.5 text-white" />;
     }
   };
 
-  const getHealthBadge = (status: Project['healthStatus']) => {
+  const getHealthBadge = (status: string) => {
     switch (status) {
-      case 'production':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono uppercase bg-white text-black font-bold"><ShieldCheck className="w-3 h-3" /> PRODUCCIÓN</span>;
-      case 'refactoring':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono uppercase bg-neutral-800 text-neutral-300 border border-neutral-700"><AlertTriangle className="w-3 h-3 text-neutral-400" /> REFACTOR</span>;
-      case 'staging':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono uppercase bg-neutral-900 text-neutral-200 border border-neutral-700">STAGING</span>;
+      case 'healthy':
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-black text-white border border-neutral-700 font-bold">
+            <ShieldCheck className="w-3 h-3 text-white" /> EN PRODUCCIÓN
+          </span>
+        );
+      case 'warning':
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-black text-neutral-300 border border-neutral-700 font-bold">
+            <AlertTriangle className="w-3 h-3 text-neutral-400" /> ALERTA DE RIESGO
+          </span>
+        );
       default:
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono uppercase bg-neutral-900 text-neutral-400 border border-neutral-800">DESARROLLO</span>;
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-black text-neutral-400 border border-neutral-800 font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> DESARROLLO
+          </span>
+        );
     }
   };
 
-  // Mouse Wheel Zoom Handler
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomDelta = e.deltaY < 0 ? 0.08 : -0.08;
-    setZoom(z => Math.min(2.5, Math.max(0.3, parseFloat((z + zoomDelta).toFixed(2)))));
-  };
-
-  // Desktop Mouse Drag
+  // Canvas Mouse Pan Controls
   const handleMouseDownCanvas = (e: React.MouseEvent) => {
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
       setIsPanning(true);
@@ -141,105 +121,110 @@ export const RadarView: React.FC<RadarViewProps> = ({
     setIsPanning(false);
   };
 
-  // Mobile Touch Panning & Pinch-to-Zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const zoomDelta = e.deltaY < 0 ? 0.08 : -0.08;
+    setZoom(z => Math.min(2.5, Math.max(0.3, parseFloat((z + zoomDelta).toFixed(2)))));
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       setIsPanning(true);
       setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
-    } else if (e.touches.length === 2) {
-      setIsPanning(false);
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      setTouchDistanceStart(dist);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (e.touches.length === 1 && isPanning) {
       setPan({ x: e.touches[0].clientX - dragStart.x, y: e.touches[0].clientY - dragStart.y });
-    } else if (e.touches.length === 2 && touchDistanceStart !== null) {
-      const currentDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const factor = currentDist / touchDistanceStart;
-      setZoom(z => Math.min(2.5, Math.max(0.3, parseFloat((z * (factor > 1 ? 1.03 : 0.97)).toFixed(2)))));
-      setTouchDistanceStart(currentDist);
     }
   };
 
   const handleTouchEnd = () => {
     setIsPanning(false);
-    setTouchDistanceStart(null);
   };
 
-  // Compute Responsive Radial Mind Map layout
-  const centerX = isMobile ? 320 : 650;
-  const centerY = isMobile ? 260 : 360;
-  const horizontalDist = isMobile ? 260 : 380;
-  const verticalSpacing = isMobile ? 140 : 160;
+  const handleOpenLocalFolderDirect = async () => {
+    try {
+      if ('showDirectoryPicker' in window) {
+        const handle = await (window as any).showDirectoryPicker();
+        if (handle) {
+          const newProj = await scanNativeDirectoryHandle(handle);
+          onSelectProject(newProj);
+        }
+      } else {
+        onOpenScanner();
+      }
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.warn('Error reading directory:', e);
+      }
+    }
+  };
 
-  const projectNodes = filteredProjects.map((p, idx) => {
-    const isEven = idx % 2 === 0;
-    const sideMultiplier = isEven ? 1 : -1;
-    const pairIndex = Math.floor(idx / 2);
-    const rowOffset = (pairIndex - (Math.ceil(filteredProjects.length / 2) - 1) / 2) * verticalSpacing;
+  // Mind Map Coordinates Layout Algorithm
+  const centerX = 700;
+  const centerY = 450;
+  const verticalSpacing = 160;
 
-    const x = centerX + sideMultiplier * horizontalDist;
-    const y = centerY + rowOffset;
-    const isRight = sideMultiplier > 0;
+  const leftCount = Math.ceil(filteredProjects.length / 2);
+  const rightCount = filteredProjects.length - leftCount;
 
-    return { ...p, x, y, isRight };
+  const projectNodes = filteredProjects.map((proj, idx) => {
+    const isRight = idx >= leftCount;
+    const sideIdx = isRight ? idx - leftCount : idx;
+    const totalOnSide = isRight ? rightCount : leftCount;
+
+    const startY = centerY - ((totalOnSide - 1) * verticalSpacing) / 2;
+    const x = isRight ? centerX + 360 : centerX - 360;
+    const y = startY + sideIdx * verticalSpacing;
+
+    return {
+      ...proj,
+      x,
+      y,
+      isRight
+    };
   });
 
   return (
     <div 
-      className="flex-1 flex flex-col h-full bg-[#0A0A0A] text-neutral-200 overflow-hidden relative font-sans select-none"
+      className="flex-1 h-full bg-[#0A0A0A] flex flex-col font-sans text-neutral-200 overflow-hidden select-none relative"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Background Micro Grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1A1A1A_1px,transparent_1px),linear-gradient(to_bottom,#1A1A1A_1px,transparent_1px)] bg-[size:32px_32px] opacity-40 pointer-events-none" />
-
-      {/* Header Banner - Responsive Compact Layout */}
-      <div className="px-4 sm:px-8 py-3 sm:py-4 border-b border-neutral-800 bg-[#121212] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 z-20">
+      {/* Top OS Branding Bar */}
+      <div className="p-4 sm:p-6 bg-[#0D0D0D] border-b border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-4 z-20 font-mono shadow-2xl">
         <div className="flex items-center gap-3">
-          <img 
-            src="/logo.png" 
-            alt="Arkhet Logo" 
-            className="h-8 sm:h-10 w-auto object-contain rounded border border-neutral-800"
-          />
+          <img src="/logo.png" alt="Arkhet" className="h-8 w-auto object-contain rounded border border-neutral-800" />
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2 font-mono">
-              ARKHET
-              <span className="text-[9px] sm:text-[10px] font-mono px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700 font-normal">
-                MAPA MENTAL
-              </span>
-            </h1>
-            <p className="text-[11px] sm:text-xs text-neutral-400 font-mono line-clamp-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold text-white tracking-wider uppercase">ARKHET</h1>
+              <span className="px-1.5 py-0.2 text-[8px] bg-white text-black font-bold rounded">MAPA MENTAL</span>
+            </div>
+            <p className="text-[10px] text-neutral-400 font-sans">
               Operating System de Arquitectura & Grafo Vivo
             </p>
           </div>
         </div>
 
-        {/* Action Toolbar (Horizontal Scroll on Mobile) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 font-mono text-xs">
-          <div className="flex items-center bg-black p-1 rounded border border-neutral-800 shrink-0">
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
+          {/* Switcher Mindmap vs Grid */}
+          <div className="bg-black p-1 rounded border border-neutral-800 flex items-center gap-1 text-xs">
             <button
               onClick={() => setViewMode('mindmap')}
-              className={`px-2.5 py-1 rounded font-bold flex items-center gap-1.5 transition-all text-[11px] ${
+              className={`px-3 py-1 rounded font-bold transition-all flex items-center gap-1.5 ${
                 viewMode === 'mindmap' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-black" /> MAPA
+              <GitBranch className="w-3.5 h-3.5" /> MAPA
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`px-2.5 py-1 rounded font-bold flex items-center gap-1.5 transition-all text-[11px] ${
+              className={`px-3 py-1 rounded font-bold transition-all flex items-center gap-1.5 ${
                 viewMode === 'grid' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
               }`}
             >
@@ -294,7 +279,7 @@ export const RadarView: React.FC<RadarViewProps> = ({
         </div>
       )}
 
-      {/* Filter & Search Toolbar (Single Touch Line) */}
+      {/* Filter & Search Toolbar */}
       <div className="px-4 sm:px-8 py-2 border-b border-neutral-800 bg-[#0D0D0D] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 z-20">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {categories.map(cat => (
@@ -332,7 +317,7 @@ export const RadarView: React.FC<RadarViewProps> = ({
             <button
               onClick={() => setZoom(z => Math.min(2.5, z + 0.15))}
               className="p-1 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition-colors"
-              title="Acercar (o usa la rueda del ratón)"
+              title="Acercar"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
@@ -340,7 +325,7 @@ export const RadarView: React.FC<RadarViewProps> = ({
             <button
               onClick={() => setZoom(z => Math.max(0.3, z - 0.15))}
               className="p-1 hover:bg-neutral-800 rounded text-neutral-300 hover:text-white transition-colors"
-              title="Alejar (o usa la rueda del ratón)"
+              title="Alejar"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
@@ -381,7 +366,7 @@ export const RadarView: React.FC<RadarViewProps> = ({
                       strokeDasharray="4,4"
                     />
 
-                    {/* Sub-Branch Leaf Nodes (Tech Stack Tags) extending outwards */}
+                    {/* Sub-Branch Leaf Nodes (Tech Stack Tags) */}
                     {pn.primaryStack.slice(0, 3).map((st, sIdx) => {
                       const leafDirection = pn.isRight ? 1 : -1;
                       const lx = pn.x + leafDirection * (140 + (sIdx % 2) * 20);
@@ -426,10 +411,22 @@ export const RadarView: React.FC<RadarViewProps> = ({
 
               {/* Mind Map Project Branch Nodes */}
               {projectNodes.map(pn => (
-                <g key={pn.id} transform={`translate(${pn.x - 120}, ${pn.y - 60})`}>
-                  <foreignObject width="240" height="120">
+                <g 
+                  key={pn.id} 
+                  transform={`translate(${pn.x - 120}, ${pn.y - 60})`}
+                  onMouseDown={e => e.stopPropagation()}
+                  onClick={e => {
+                    e.stopPropagation();
+                    onSelectProject(pn);
+                  }}
+                  className="cursor-pointer"
+                >
+                  <foreignObject width="240" height="120" className="pointer-events-auto">
                     <div
-                      onClick={() => onSelectProject(pn)}
+                      onClick={e => {
+                        e.stopPropagation();
+                        onSelectProject(pn);
+                      }}
                       className="group w-full h-full p-3 rounded-lg bg-[#171717] border border-neutral-800 hover:border-white transition-all cursor-pointer shadow-2xl flex flex-col justify-between"
                     >
                       <div>
@@ -492,7 +489,10 @@ export const RadarView: React.FC<RadarViewProps> = ({
                 {filteredProjects.map(project => (
                   <div
                     key={project.id}
-                    onClick={() => onSelectProject(project)}
+                    onClick={e => {
+                      e.stopPropagation();
+                      onSelectProject(project);
+                    }}
                     className="group bg-[#141414] border border-neutral-800 hover:border-white rounded-lg p-4 sm:p-6 transition-all duration-200 cursor-pointer flex flex-col justify-between relative"
                   >
                     <div>
@@ -520,38 +520,27 @@ export const RadarView: React.FC<RadarViewProps> = ({
                         </div>
                       </div>
 
-                      <h3 className="text-base font-bold text-white group-hover:text-white transition-colors flex items-center justify-between">
+                      <h3 className="text-base font-bold text-white group-hover:text-white font-mono flex items-center justify-between mb-2">
                         {project.name}
                         <ExternalLink className="w-4 h-4 text-neutral-600 group-hover:text-white transition-colors" />
                       </h3>
-                      <p className="text-xs text-neutral-400 mt-2 leading-relaxed font-sans">
+
+                      <p className="text-xs text-neutral-400 line-clamp-2 mb-4 font-sans leading-relaxed">
                         {project.description}
                       </p>
+                    </div>
 
-                      <div className="flex flex-wrap gap-1.5 mt-4">
-                        {project.primaryStack.map(stack => (
-                          <span
-                            key={stack}
-                            className="px-2 py-0.5 rounded text-[11px] font-mono bg-black text-neutral-300 border border-neutral-800"
-                          >
-                            {stack}
+                    <div className="space-y-3 pt-3 border-t border-neutral-800">
+                      <div className="flex flex-wrap gap-1.5">
+                        {project.primaryStack.map(tech => (
+                          <span key={tech} className="text-[10px] font-mono px-2 py-0.5 rounded bg-black text-neutral-300 border border-neutral-800 font-bold">
+                            {tech}
                           </span>
                         ))}
                       </div>
-                    </div>
 
-                    <div className="mt-6 pt-4 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400 font-mono">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1 text-white font-bold">
-                          <UserCheck className="w-3.5 h-3.5 text-white" /> @{project.gitInfo?.owner || 'Sebaxis07'}
-                        </span>
-                        <span>
-                          <strong className="text-white">{project.nodes.length}</strong> NODOS
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-neutral-500">COMPLEJIDAD:</span>
+                      <div className="flex items-center justify-between text-xs font-mono text-neutral-400">
+                        <span>PUNTAJE DE COMPLEJIDAD</span>
                         <span className="font-bold text-white">{project.complexityScore} / 100</span>
                       </div>
                     </div>
@@ -559,20 +548,12 @@ export const RadarView: React.FC<RadarViewProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="p-8 text-center bg-[#121212] border border-neutral-800 rounded-lg max-w-xl mx-auto my-12 space-y-4">
-                <div className="p-3 bg-black rounded-full w-16 h-16 mx-auto border border-neutral-800 flex items-center justify-center text-white">
-                  <img src="/logo.png" alt="Arkhet Logo" className="w-10 h-10 object-contain" />
-                </div>
-                <h3 className="text-base font-bold text-white uppercase font-mono tracking-wider">Bienvenido a Arkhet</h3>
-                <p className="text-xs text-neutral-400 font-mono max-w-md mx-auto leading-relaxed">
-                  Selecciona la carpeta raíz de cualquier proyecto local en tu equipo para construir su grafo de arquitectura en Arkhet.
+              <div className="p-8 text-center bg-[#141414] border border-neutral-800 rounded-lg space-y-3 font-mono">
+                <Boxes className="w-8 h-8 mx-auto text-neutral-500" />
+                <h3 className="text-sm font-bold text-white uppercase">No se encontraron sistemas en esta categoría</h3>
+                <p className="text-xs text-neutral-400">
+                  Prueba cambiando el filtro de búsqueda o conecta un nuevo repositorio.
                 </p>
-                <button
-                  onClick={handleOpenLocalFolderDirect}
-                  className="px-5 py-3 rounded bg-white text-black font-mono font-bold text-xs hover:bg-neutral-200 transition-colors inline-flex items-center gap-2"
-                >
-                  <HardDrive className="w-4 h-4" /> CONECTAR CARPETA LOCAL
-                </button>
               </div>
             )}
           </div>
