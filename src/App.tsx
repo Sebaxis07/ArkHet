@@ -13,6 +13,8 @@ import { GitRepoSuggestionsModal } from './components/GitRepoSuggestionsModal';
 import { UserProfileWidget } from './components/UserProfileWidget';
 import { ImportProgressModal } from './components/ImportProgressModal';
 import { CommitHistoryModal } from './components/CommitHistoryModal';
+import { CloudCostFinopsModal } from './components/CloudCostFinopsModal';
+import { ApiMockServerModal } from './components/ApiMockServerModal';
 import { scanNativeDirectoryHandle } from './services/scanner';
 import { fetchUserProjectsCloud, syncProjectCloud, clearStoredAuthToken } from './services/apiClient';
 import { 
@@ -28,7 +30,9 @@ import {
   FolderGit2,
   Maximize2,
   Sparkles,
-  GitCommit
+  GitCommit,
+  DollarSign,
+  Zap
 } from 'lucide-react';
 
 const STORAGE_KEY_PROJECTS = 'arkhet_projects_v9';
@@ -88,6 +92,8 @@ export function App() {
   const [showGitAuthModal, setShowGitAuthModal] = useState(false);
   const [showRepoSuggestionsModal, setShowRepoSuggestionsModal] = useState(false);
   const [showCommitModal, setShowCommitModal] = useState(false);
+  const [showFinopsModal, setShowFinopsModal] = useState(false);
+  const [showApiMockModal, setShowApiMockModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Background Scanning State
@@ -395,6 +401,24 @@ export function App() {
               </button>
 
               <button
+                onClick={() => setShowFinopsModal(true)}
+                className="px-2.5 py-1.5 rounded-md bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 font-bold flex items-center gap-1.5 transition-colors"
+                title="Calculadora de Costos Cloud & FinOps"
+              >
+                <DollarSign className="w-3.5 h-3.5 text-white" />
+                <span className="hidden xl:inline">COSTOS CLOUD</span>
+              </button>
+
+              <button
+                onClick={() => setShowApiMockModal(true)}
+                className="px-2.5 py-1.5 rounded-md bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 font-bold flex items-center gap-1.5 transition-colors"
+                title="Servidor API Mocks & Postman"
+              >
+                <Zap className="w-3.5 h-3.5 text-white" />
+                <span className="hidden xl:inline">API MOCKS</span>
+              </button>
+
+              <button
                 onClick={() => setShowCommitModal(true)}
                 className="px-2.5 py-1.5 rounded-md bg-black hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 font-bold flex items-center gap-1.5 transition-colors"
                 title="Historial de Commits de GitHub"
@@ -507,6 +531,20 @@ export function App() {
       </div>
 
       {/* Modals & Overlays */}
+      {showFinopsModal && activeProject && (
+        <CloudCostFinopsModal
+          project={activeProject}
+          onClose={() => setShowFinopsModal(false)}
+        />
+      )}
+
+      {showApiMockModal && activeProject && (
+        <ApiMockServerModal
+          project={activeProject}
+          onClose={() => setShowApiMockModal(false)}
+        />
+      )}
+
       {showCommitModal && activeProject && userProfile && (
         <CommitHistoryModal
           project={activeProject}
